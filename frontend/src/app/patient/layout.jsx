@@ -54,11 +54,7 @@ export default function PatientLayout({ children }) {
       href: "/patient/reports",
       icon: FileText,
     },
-    {
-      name: "Medical History",
-      href: "/patient/medical-history",
-      icon: ClipboardList,
-    },
+ 
     {
       name: "My Profile",
       href: "/patient/profile",
