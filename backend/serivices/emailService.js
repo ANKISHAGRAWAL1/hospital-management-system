@@ -1,252 +1,355 @@
- 
 require("dotenv").config();
 
 const nodemailer = require("nodemailer");
 
-console.log("MAIL_USER loaded:", !!process.env.MAIL_USER);
-console.log("MAIL_PASS loaded:", !!process.env.MAIL_PASS);
+// ==========================================
+// ENVIRONMENT VARIABLES
+// ==========================================
+
+const MAIL_USER = process.env.MAIL_USER;
+const MAIL_PASS = process.env.MAIL_PASS;
+
+console.log("MAIL_USER loaded:", !!MAIL_USER);
+console.log("MAIL_PASS loaded:", !!MAIL_PASS);
 
 // ==========================================
-// NODEMAILER TRANSPORTER
+// ENV VALIDATION
+// ==========================================
+
+if (!MAIL_USER || !MAIL_PASS) {
+  console.error(
+    "❌ MAIL_USER or MAIL_PASS is missing from environment variables."
+  );
+}
+
+// ==========================================
+// SMTP TRANSPORTER
 // ==========================================
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
 
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    user: MAIL_USER,
+    pass: MAIL_PASS,
   },
+
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 // ==========================================
-// GENERATE OTP
+// SMTP CONNECTION TEST
 // ==========================================
 
-const generateOtp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
+transporter.verify((error) => {
+  if (error) {
+    console.error("❌ SMTP CONNECTION ERROR:");
+    console.error(error);
+  } else {
+    console.log("✅ SMTP SERVER READY");
+  }
+});
 
 // ==========================================
 // SEND OTP EMAIL
 // ==========================================
 
-const sendOtpEmail = async (email) => {
+const sendOtpEmail = async (email, otp) => {
   try {
-    const otp = generateOtp();
+    // --------------------------------------
+    // BASIC VALIDATION
+    // --------------------------------------
 
-    const info = await transporter.sendMail({
-      from: `"Yash Hospital | Account Verification" <${process.env.MAIL_USER}>`,
+    if (!email) {
+      throw new Error("Email is required");
+    }
 
-      to: email,
+    if (!otp) {
+      throw new Error("OTP is required");
+    }
 
-      subject: "Yash Hospital - Verification Code",
+    // --------------------------------------
+    // CLEAN VALUES
+    // --------------------------------------
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+
+    // --------------------------------------
+    // EMAIL VALIDATION
+    // --------------------------------------
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(cleanEmail)) {
+      throw new Error("Invalid email address");
+    }
+
+    // --------------------------------------
+    // OTP VALIDATION
+    // --------------------------------------
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      throw new Error("OTP must be exactly 6 digits");
+    }
+
+    // --------------------------------------
+    // DEBUG LOG
+    // --------------------------------------
+
+    console.log("==========================================");
+    console.log("📧 SENDING DOCTOR OTP EMAIL");
+    console.log("To:", cleanEmail);
+    console.log("OTP:", cleanOtp);
+    console.log("==========================================");
+
+    // --------------------------------------
+    // MAIL OPTIONS
+    // --------------------------------------
+
+    const mailOptions = {
+      from: `"Yash Hospital | Account Verification" <${MAIL_USER}>`,
+      to: cleanEmail,
+      subject: "Yash Hospital - Doctor Verification Code",
+
+      text: `
+Yash Hospital
+
+Doctor Account Verification
+
+Your verification code is: ${cleanOtp}
+
+This verification code is valid for 5 minutes.
+
+If you did not request this verification code,
+please ignore this email.
+
+© ${new Date().getFullYear()} Yash Hospital.
+      `.trim(),
 
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Yash Hospital Verification</title>
-        </head>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
 
-        <body style="
-          margin: 0;
-          padding: 0;
-          background: #f4f7f6;
-          font-family: Arial, Helvetica, sans-serif;
-        ">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
 
-          <div style="
-            max-width: 520px;
-            margin: 35px auto;
-            background: #ffffff;
-            border: 1px solid #e2e8e5;
-            border-radius: 12px;
-            overflow: hidden;
-          ">
+  <title>Yash Hospital OTP</title>
+</head>
 
-            <!-- HEADER -->
-            <div style="
-              background: #0f3d35;
-              padding: 25px;
-              text-align: center;
-              color: #ffffff;
-            ">
+<body
+  style="
+    margin:0;
+    padding:0;
+    background:#f5f7f8;
+    font-family:Arial,Helvetica,sans-serif;
+  "
+>
 
-              <h1 style="
-                margin: 0;
-                font-size: 25px;
-              ">
-                Yash Hospital
-              </h1>
+  <div
+    style="
+      max-width:600px;
+      margin:40px auto;
+      background:#ffffff;
+      border-radius:12px;
+      overflow:hidden;
+      border:1px solid #e2e8e4;
+    "
+  >
 
-              <p style="
-                margin: 8px 0 0;
-                color: #c8ded9;
-                font-size: 13px;
-              ">
-                Secure Healthcare Portal
-              </p>
+    <!-- HEADER -->
 
-            </div>
+    <div
+      style="
+        background:#064e3b;
+        padding:25px;
+        text-align:center;
+      "
+    >
 
-            <!-- CONTENT -->
-            <div style="padding: 30px;">
+      <h1
+        style="
+          margin:0;
+          color:#ffffff;
+          font-size:24px;
+        "
+      >
+        Yash Hospital
+      </h1>
 
-              <h2 style="
-                margin-top: 0;
-                color: #17211b;
-                font-size: 20px;
-              ">
-                Verify Your Account
-              </h2>
+      <p
+        style="
+          margin:8px 0 0;
+          color:#d1fae5;
+          font-size:14px;
+        "
+      >
+        Doctor Account Verification
+      </p>
 
-              <p style="
-                color: #46534b;
-                line-height: 1.6;
-                font-size: 14px;
-              ">
-                Hello,
-              </p>
+    </div>
 
-              <p style="
-                color: #46534b;
-                line-height: 1.6;
-                font-size: 14px;
-              ">
-                We received a request to verify your account
-                on the Yash Hospital Healthcare Portal.
-              </p>
+    <!-- CONTENT -->
 
-              <p style="
-                color: #46534b;
-                line-height: 1.6;
-                font-size: 14px;
-              ">
-                Please use the one-time verification code below
-                to continue.
-              </p>
+    <div
+      style="
+        padding:35px 30px;
+      "
+    >
 
-              <!-- OTP BOX -->
-              <div style="
-                background: #ecfdf5;
-                border: 1px solid #a7f3d0;
-                border-radius: 10px;
-                padding: 22px;
-                margin: 25px 0;
-                text-align: center;
-              ">
+      <h2
+        style="
+          margin:0 0 15px;
+          color:#17211b;
+          font-size:22px;
+        "
+      >
+        Verify Your Account
+      </h2>
 
-                <p style="
-                  margin: 0 0 10px;
-                  color: #047857;
-                  font-size: 12px;
-                  font-weight: bold;
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                ">
-                  Verification Code
-                </p>
+      <p
+        style="
+          color:#46534b;
+          font-size:15px;
+          line-height:1.6;
+        "
+      >
+        We received a request to verify your doctor account.
+        Please use the verification code below.
+      </p>
 
-                <div style="
-                  font-size: 36px;
-                  font-weight: bold;
-                  letter-spacing: 8px;
-                  color: #064e3b;
-                ">
-                  ${otp}
-                </div>
+      <!-- OTP BOX -->
 
-              </div>
+      <div
+        style="
+          margin:30px 0;
+          padding:20px;
+          background:#ecfdf5;
+          border:1px solid #6ee7b7;
+          border-radius:10px;
+          text-align:center;
+        "
+      >
 
-              <p style="
-                color: #66736b;
-                font-size: 13px;
-                line-height: 1.5;
-              ">
-                This verification code is valid for
-                <strong>5 minutes</strong>.
-              </p>
+        <p
+          style="
+            margin:0 0 8px;
+            color:#66736b;
+            font-size:13px;
+          "
+        >
+          Your verification code
+        </p>
 
-              <!-- SECURITY NOTICE -->
-              <div style="
-                background: #f8faf9;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 20px 0;
-              ">
+        <div
+          style="
+            font-size:34px;
+            font-weight:bold;
+            letter-spacing:8px;
+            color:#064e3b;
+          "
+        >
+          ${cleanOtp}
+        </div>
 
-                <p style="
-                  margin: 0;
-                  color: #46534b;
-                  font-size: 13px;
-                  line-height: 1.5;
-                ">
-                  <strong>Security Notice:</strong><br>
-                  Never share this verification code with
-                  anyone, including hospital staff.
-                </p>
+      </div>
 
-              </div>
+      <p
+        style="
+          color:#66736b;
+          font-size:14px;
+          line-height:1.6;
+        "
+      >
+        This verification code is valid for
+        <strong>5 minutes</strong>.
+      </p>
 
-              <p style="
-                color: #66736b;
-                font-size: 13px;
-                line-height: 1.5;
-              ">
-                If you did not request this verification code,
-                you can safely ignore this email.
-              </p>
+      <p
+        style="
+          color:#66736b;
+          font-size:14px;
+          line-height:1.6;
+        "
+      >
+        If you did not request this verification code,
+        please ignore this email.
+      </p>
 
-              <hr style="
-                border: 0;
-                border-top: 1px solid #e2e8e5;
-                margin: 25px 0;
-              ">
+    </div>
 
-              <!-- FOOTER -->
-              <p style="
-                text-align: center;
-                color: #66736b;
-                font-size: 12px;
-                line-height: 1.5;
-                margin: 0;
-              ">
-                Yash Hospital<br>
-                Secure Healthcare Portal
-              </p>
+    <!-- FOOTER -->
 
-              <p style="
-                text-align: center;
-                color: #94a19a;
-                font-size: 11px;
-                margin-top: 15px;
-              ">
-                This is an automated email. Please do not reply.
-              </p>
+    <div
+      style="
+        background:#f8faf9;
+        padding:20px;
+        text-align:center;
+        border-top:1px solid #edf1ee;
+      "
+    >
 
-            </div>
+      <p
+        style="
+          margin:0;
+          color:#94a19a;
+          font-size:12px;
+        "
+      >
+        © ${new Date().getFullYear()} Yash Hospital.
+        All rights reserved.
+      </p>
 
-          </div>
+    </div>
 
-        </body>
-        </html>
+  </div>
+
+</body>
+</html>
       `,
-    });
+    };
 
-    console.log("OTP email sent:", info.messageId);
-    console.log("Generated OTP:", otp);
+    // --------------------------------------
+    // SEND EMAIL
+    // --------------------------------------
+
+    console.log("📨 Calling SMTP sendMail...");
+
+    const info = await transporter.sendMail(mailOptions);
+
+    // --------------------------------------
+    // SUCCESS
+    // --------------------------------------
+ 
+    console.log(" OTP EMAIL SENT SUCCESSFULLY");
+    console.log("Message ID:", info.messageId);
+   
 
     return {
       success: true,
       messageId: info.messageId,
-      otp: otp,
     };
-
   } catch (error) {
-    console.error("OTP email error:", error);
+    // --------------------------------------
+    // ERROR
+    // --------------------------------------
+
+    console.error("==========================================");
+    console.error("❌ OTP EMAIL ERROR");
+    console.error("Name:", error.name);
+    console.error("Message:", error.message);
+    console.error("Code:", error.code);
+    console.error("Command:", error.command);
+    console.error("==========================================");
+
     throw error;
   }
 };
@@ -258,4 +361,3 @@ const sendOtpEmail = async (email) => {
 module.exports = {
   sendOtpEmail,
 };
-

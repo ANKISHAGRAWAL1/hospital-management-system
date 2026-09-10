@@ -1,75 +1,224 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-
+import { useRouter } from "next/navigation";
 import {
-  Stethoscope,
-  ShieldCheck,
+  Mail,
   ArrowLeft,
-  HeartPulse,
+  ShieldCheck,
+  Loader2,
+  CheckCircle2,
   RefreshCw,
 } from "lucide-react";
+import { toast } from "react-toastify";
 
 import {
   verifyDoctorOtp,
+  verifyDoctorResetOtp,
   resendDoctorOtp,
 } from "@/app/components/utils/Api-call/doctor-auth-api";
 
-import { notify } from "@/app/components/healper";
-
 export default function DoctorVerifyOtpPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const email = searchParams.get("email") || "";
+  // ==========================================
+  // STATES
+  // ==========================================
 
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [email, setEmail] = useState("");
+
+  const [purpose, setPurpose] = useState("setup");
+
+  const [otp, setOtp] = useState([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
+
   const [loading, setLoading] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  const [timeLeft, setTimeLeft] = useState(300);
 
   const inputRefs = useRef([]);
 
   // ==========================================
-  // RESEND TIMER
+  // GET EMAIL + PURPOSE FROM SESSION
   // ==========================================
 
   useEffect(() => {
-    if (resendTimer <= 0) return;
+    const storedEmail =
+      sessionStorage.getItem("doctorOtpEmail");
+
+    const storedPurpose =
+      sessionStorage.getItem("doctorOtpPurpose") || "setup";
+
+    // ------------------------------------------
+    // EMAIL NOT FOUND
+    // ------------------------------------------
+
+    if (!storedEmail) {
+      toast.error(
+        "Verification session expired. Please try again."
+      );
+
+      if (storedPurpose === "reset") {
+        router.replace("/doctor/forgot-password");
+      } else {
+        router.replace("/doctor/verify-email");
+      }
+
+      return;
+    }
+
+    setEmail(storedEmail);
+    setPurpose(storedPurpose);
+
+    // ------------------------------------------
+    // RESTORE OTP EXPIRY IF AVAILABLE
+    // ------------------------------------------
+
+    const storedExpiry =
+      sessionStorage.getItem(
+        "doctorOtpExpiresAt"
+      );
+
+    if (storedExpiry) {
+      const remaining = Math.max(
+        0,
+        Math.floor(
+          (Number(storedExpiry) - Date.now()) / 1000
+        )
+      );
+
+      setTimeLeft(remaining);
+    }
+
+    // Focus first OTP input
+    setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 300);
+  }, [router]);
+
+  // ==========================================
+  // OTP TIMER
+  // ==========================================
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      setResendTimer((prev) => prev - 1);
+      setTimeLeft((previous) =>
+        previous > 0 ? previous - 1 : 0
+      );
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [resendTimer]);
+  }, [timeLeft]);
+
+  // ==========================================
+  // FORMAT TIMER
+  // ==========================================
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+
+    const remainingSeconds = seconds % 60;
+
+    return `${String(minutes).padStart(
+      2,
+      "0"
+    )}:${String(remainingSeconds).padStart(
+      2,
+      "0"
+    )}`;
+  };
 
   // ==========================================
   // OTP CHANGE
   // ==========================================
 
-  const handleOtpChange = (value, index) => {
-    // Only numbers
-    if (!/^\d*$/.test(value)) return;
+  const handleOtpChange = (index, value) => {
+    const numbersOnly = value
+      .replace(/\D/g, "");
 
-    const newOtp = [...otp];
+    // ------------------------------------------
+    // EMPTY INPUT
+    // ------------------------------------------
 
-    newOtp[index] = value.slice(-1);
+    if (!numbersOnly) {
+      const updatedOtp = [...otp];
 
-    setOtp(newOtp);
+      updatedOtp[index] = "";
+
+      setOtp(updatedOtp);
+
+      return;
+    }
+
+    // ------------------------------------------
+    // MULTIPLE DIGITS / PASTE
+    // ------------------------------------------
+
+    if (numbersOnly.length > 1) {
+      const digits = numbersOnly
+        .slice(0, 6)
+        .split("");
+
+      const updatedOtp = [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ];
+
+      digits.forEach((digit, digitIndex) => {
+        updatedOtp[digitIndex] = digit;
+      });
+
+      setOtp(updatedOtp);
+
+      const nextIndex = Math.min(
+        digits.length,
+        5
+      );
+
+      setTimeout(() => {
+        inputRefs.current[nextIndex]?.focus();
+      }, 0);
+
+      return;
+    }
+
+    // ------------------------------------------
+    // SINGLE DIGIT
+    // ------------------------------------------
+
+    const updatedOtp = [...otp];
+
+    updatedOtp[index] = numbersOnly;
+
+    setOtp(updatedOtp);
 
     // Move to next input
-    if (value && index < 5) {
+    if (index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   // ==========================================
-  // KEYBOARD NAVIGATION
+  // KEYBOARD HANDLING
   // ==========================================
 
-  const handleKeyDown = (e, index) => {
+  const handleKeyDown = (index, e) => {
+    // Backspace
     if (
       e.key === "Backspace" &&
       !otp[index] &&
@@ -78,11 +227,19 @@ export default function DoctorVerifyOtpPage() {
       inputRefs.current[index - 1]?.focus();
     }
 
-    if (e.key === "ArrowLeft" && index > 0) {
+    // Left Arrow
+    if (
+      e.key === "ArrowLeft" &&
+      index > 0
+    ) {
       inputRefs.current[index - 1]?.focus();
     }
 
-    if (e.key === "ArrowRight" && index < 5) {
+    // Right Arrow
+    if (
+      e.key === "ArrowRight" &&
+      index < 5
+    ) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -94,27 +251,245 @@ export default function DoctorVerifyOtpPage() {
   const handlePaste = (e) => {
     e.preventDefault();
 
-    const pastedData = e.clipboardData
+    const pastedOtp = e.clipboardData
       .getData("text")
       .replace(/\D/g, "")
       .slice(0, 6);
 
-    if (!pastedData) return;
+    if (!pastedOtp) {
+      return;
+    }
 
-    const newOtp = ["", "", "", "", "", ""];
+    const digits = pastedOtp.split("");
 
-    pastedData.split("").forEach((digit, index) => {
-      newOtp[index] = digit;
+    const updatedOtp = [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ];
+
+    digits.forEach((digit, index) => {
+      updatedOtp[index] = digit;
     });
 
-    setOtp(newOtp);
+    setOtp(updatedOtp);
 
     const nextIndex = Math.min(
-      pastedData.length,
+      digits.length,
       5
     );
 
-    inputRefs.current[nextIndex]?.focus();
+    setTimeout(() => {
+      inputRefs.current[nextIndex]?.focus();
+    }, 0);
+  };
+
+  // ==========================================
+  // VERIFY OTP
+  // ==========================================
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+
+    // ------------------------------------------
+    // EMAIL CHECK
+    // ------------------------------------------
+
+    if (!email) {
+      toast.error(
+        "Email not found. Please start again."
+      );
+
+      if (purpose === "reset") {
+        router.replace(
+          "/doctor/forgot-password"
+        );
+      } else {
+        router.replace(
+          "/doctor/verify-email"
+        );
+      }
+
+      return;
+    }
+
+    // ------------------------------------------
+    // COMBINE OTP
+    // ------------------------------------------
+
+    const enteredOtp = otp.join("");
+
+    // ------------------------------------------
+    // OTP LENGTH
+    // ------------------------------------------
+
+    if (enteredOtp.length !== 6) {
+      toast.error(
+        "Please enter the complete 6-digit OTP"
+      );
+
+      return;
+    }
+
+    // ------------------------------------------
+    // OTP EXPIRED
+    // ------------------------------------------
+
+    if (timeLeft <= 0) {
+      toast.error(
+        "OTP has expired. Please resend a new OTP."
+      );
+
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      let result;
+
+      // ========================================
+      // RESET PASSWORD FLOW
+      // ========================================
+
+      if (purpose === "reset") {
+        result = await verifyDoctorResetOtp(
+          email,
+          enteredOtp
+        );
+      }
+
+      // ========================================
+      // FIRST TIME SETUP FLOW
+      // ========================================
+
+      else {
+        result = await verifyDoctorOtp(
+          email,
+          enteredOtp
+        );
+      }
+
+      // ========================================
+      // API FAILED
+      // ========================================
+
+      if (!result?.success) {
+        toast.error(
+          result?.message || "Invalid OTP"
+        );
+
+        return;
+      }
+
+      // ========================================
+      // RESET PASSWORD FLOW
+      // ========================================
+
+      if (purpose === "reset") {
+        if (!result?.resetToken) {
+          toast.error(
+            "Reset token was not received. Please try again."
+          );
+
+          return;
+        }
+
+        // Save reset token
+        sessionStorage.setItem(
+          "doctorResetToken",
+          result.resetToken
+        );
+
+        // Keep email
+        sessionStorage.setItem(
+          "doctorOtpEmail",
+          email
+        );
+
+        // Clear OTP purpose
+        sessionStorage.setItem(
+          "doctorOtpPurpose",
+          "reset"
+        );
+
+        // Remove OTP expiry
+        sessionStorage.removeItem(
+          "doctorOtpExpiresAt"
+        );
+
+        toast.success(
+          "OTP verified successfully"
+        );
+
+        // Go to reset password
+        router.push(
+          "/doctor/reset-password"
+        );
+
+        return;
+      }
+
+      // ========================================
+      // FIRST TIME SETUP FLOW
+      // ========================================
+
+      if (!result?.setupToken) {
+        toast.error(
+          "Verification token was not received. Please try again."
+        );
+
+        return;
+      }
+
+      // Save setup token
+      sessionStorage.setItem(
+        "doctorSetupToken",
+        result.setupToken
+      );
+
+      // Keep email
+      sessionStorage.setItem(
+        "doctorOtpEmail",
+        email
+      );
+
+      // Keep purpose
+      sessionStorage.setItem(
+        "doctorOtpPurpose",
+        "setup"
+      );
+
+      // Remove OTP expiry
+      sessionStorage.removeItem(
+        "doctorOtpExpiresAt"
+      );
+
+      toast.success(
+        "Email verified successfully"
+      );
+
+      // Go to create password
+      router.push(
+        "/doctor/create-password"
+      );
+    } catch (error) {
+      console.error(
+        "VERIFY DOCTOR OTP ERROR:",
+        error
+      );
+
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "OTP verification failed"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ==========================================
@@ -123,561 +498,593 @@ export default function DoctorVerifyOtpPage() {
 
   const handleResendOtp = async () => {
     if (!email) {
-      notify("Email not found", false);
-      router.push("/doctor/register");
-      return;
-    }
+      toast.error(
+        "Email not found. Please start again."
+      );
 
-    if (resendTimer > 0 || resendLoading) {
-      return;
-    }
-
-    setResendLoading(true);
-
-    try {
-      const response = await resendDoctorOtp(email);
-
-      console.log("Resend OTP response:", response);
-
-      if (response?.success) {
-        notify(
-          response.message || "New OTP sent successfully",
-          true
+      if (purpose === "reset") {
+        router.replace(
+          "/doctor/forgot-password"
         );
-
-        // Clear old OTP
-        setOtp(["", "", "", "", "", ""]);
-
-        // Restart timer
-        setResendTimer(60);
-
-        // Focus first input
-        setTimeout(() => {
-          inputRefs.current[0]?.focus();
-        }, 100);
       } else {
-        notify(
-          response?.message || "Failed to resend OTP",
-          false
+        router.replace(
+          "/doctor/verify-email"
         );
       }
-    } catch (error) {
-      console.error("Resend OTP error:", error);
 
-      notify(
-        error?.message || "Failed to resend OTP",
-        false
-      );
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  // ==========================================
-  // VERIFY OTP
-  // ==========================================
-
-  const handleVerify = async (e) => {
-    e.preventDefault();
-
-    const enteredOtp = otp.join("").trim();
-
-    console.log("========== OTP VERIFY ==========");
-    console.log("Email:", email);
-    console.log("Entered OTP:", enteredOtp);
-    console.log("OTP Length:", enteredOtp.length);
-    console.log("================================");
-
-    // Email validation
-    if (!email) {
-      notify("Email not found", false);
-      router.push("/doctor/register");
       return;
     }
 
-    // OTP validation
-    if (!/^\d{6}$/.test(enteredOtp)) {
-      notify(
-        "Please enter the complete 6-digit OTP",
-        false
-      );
+    if (resending) {
       return;
     }
-
-    setLoading(true);
 
     try {
-      const response = await verifyDoctorOtp(
-        email.trim().toLowerCase(),
-        enteredOtp
+      setResending(true);
+
+      /*
+       * IMPORTANT:
+       *
+       * resendDoctorOtp() currently belongs
+       * to the common Doctor OTP flow.
+       *
+       * Your backend resend endpoint should
+       * generate a new OTP for both setup and
+       * reset-password flows.
+       */
+
+      const result = await resendDoctorOtp(
+        email
       );
 
-      console.log(
-        "========== VERIFY RESPONSE =========="
-      );
-      console.log("Verify OTP response:", response);
-      console.log(
-        "Success:",
-        response?.success
-      );
-      console.log(
-        "Setup Token:",
-        response?.setupToken
-          ? "RECEIVED"
-          : "MISSING"
-      );
-      console.log(
-        "====================================="
-      );
-
-      // ======================================
-      // OTP SUCCESS
-      // ======================================
-
-      if (response?.success) {
-        const setupToken = response?.setupToken;
-
-        // Backend should return setupToken
-        if (!setupToken) {
-          console.error(
-            "Setup token missing:",
-            response
-          );
-
-          notify(
-            "OTP verified, but setup token was not received.",
-            false
-          );
-
-          return;
-        }
-
-        // Save setup token
-        sessionStorage.setItem(
-          "doctorSetupToken",
-          setupToken
+      if (!result?.success) {
+        toast.error(
+          result?.message ||
+            "Unable to resend OTP"
         );
-
-        notify(
-          response.message ||
-            "OTP verified successfully",
-          true
-        );
-
-        // Go to create account
-        router.push("/doctor/create-account");
 
         return;
       }
 
-      // ======================================
-      // OTP FAILED
-      // ======================================
+      // ------------------------------------------
+      // CLEAR OLD OTP
+      // ------------------------------------------
 
-      notify(
-        response?.message || "Invalid OTP",
-        false
+      setOtp([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
+
+      // ------------------------------------------
+      // RESET TIMER
+      // ------------------------------------------
+
+      setTimeLeft(300);
+
+      // ------------------------------------------
+      // SAVE NEW EXPIRY
+      // ------------------------------------------
+
+      sessionStorage.setItem(
+        "doctorOtpExpiresAt",
+        String(
+          Date.now() + 300000
+        )
       );
+
+      toast.success(
+        "New OTP sent successfully"
+      );
+
+      // ------------------------------------------
+      // FOCUS FIRST BOX
+      // ------------------------------------------
+
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
     } catch (error) {
       console.error(
-        "OTP verification error:",
+        "RESEND DOCTOR OTP ERROR:",
         error
       );
 
-      notify(
-        error?.message ||
-          "OTP verification failed",
-        false
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to resend OTP"
       );
     } finally {
-      setLoading(false);
+      setResending(false);
     }
   };
+
+  // ==========================================
+  // CHANGE EMAIL
+  // ==========================================
+
+  const handleChangeEmail = () => {
+    sessionStorage.removeItem(
+      "doctorOtpEmail"
+    );
+
+    sessionStorage.removeItem(
+      "doctorOtpExpiresAt"
+    );
+
+    sessionStorage.removeItem(
+      "doctorSetupToken"
+    );
+
+    sessionStorage.removeItem(
+      "doctorResetToken"
+    );
+
+    sessionStorage.removeItem(
+      "doctorOtpPurpose"
+    );
+
+    if (purpose === "reset") {
+      router.push(
+        "/doctor/forgot-password"
+      );
+    } else {
+      router.push(
+        "/doctor/verify-email"
+      );
+    }
+  };
+
+  // ==========================================
+  // OTP COMPLETE
+  // ==========================================
+
+  const isOtpComplete = otp.every(
+    (digit) => digit !== ""
+  );
+
+  // ==========================================
+  // PAGE TEXT
+  // ==========================================
+
+  const isResetFlow =
+    purpose === "reset";
+
+  const pageTitle = isResetFlow
+    ? "Verify your identity"
+    : "Verify your email";
+
+  const pageDescription = isResetFlow
+    ? "Enter the 6-digit verification code that we sent to your registered email address to securely reset your password."
+    : "Enter the 6-digit verification code that we sent to your registered email address.";
+
+  const leftTitle = isResetFlow
+    ? "Reset your"
+    : "Verify your";
+
+  const leftTitleSecondLine = isResetFlow
+    ? "password."
+    : "account.";
+
+  const leftDescription = isResetFlow
+    ? "Enter the verification code sent to your registered email address to securely reset your doctor account password."
+    : "Enter the verification code sent to your registered email address to securely continue creating your doctor account.";
 
   // ==========================================
   // UI
   // ==========================================
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center px-4 py-8">
+    <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-2 sm:py-4">
+      <div className="w-full max-w-5xl">
 
-      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200 grid lg:grid-cols-2">
+        {/* ======================================
+            MAIN CARD
+        ======================================= */}
 
-        {/* ===================================== */}
-        {/* LEFT SIDE */}
-        {/* ===================================== */}
+        <div className="overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-xl">
 
-        <div className="hidden lg:flex relative bg-blue-600 p-12 text-white flex-col justify-between overflow-hidden">
+          <div className="grid md:grid-cols-2">
 
-          <div className="absolute -top-28 -right-28 w-80 h-80 rounded-full bg-blue-500" />
+            {/* ==================================
+                LEFT BLUE SECTION
+            =================================== */}
 
-          <div className="absolute -bottom-32 -left-28 w-80 h-80 rounded-full bg-blue-700" />
+            <div className="relative hidden md:flex min-h-[720px] flex-col justify-between overflow-hidden bg-blue-700 p-10 text-white">
 
-          <div className="relative z-10">
+              {/* Top Circle */}
 
-            {/* Logo */}
+              <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-blue-600 opacity-60" />
 
-            <div className="flex items-center gap-3">
+              {/* Bottom Circle */}
 
-              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-blue-600 shadow-sm">
-                <Stethoscope size={27} />
-              </div>
+              <div className="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-blue-800 opacity-60" />
 
-              <div>
+              {/* =================================
+                  BRAND
+              ================================== */}
 
-                <h1 className="text-xl font-bold">
-                  MediCare
-                </h1>
+              <div className="relative z-10">
 
-                <p className="text-xs text-blue-100">
-                  Hospital Management System
-                </p>
+                <div className="flex items-center">
 
-              </div>
+                  <div className="rounded-2xl bg-white px-4 py-2 shadow-lg">
 
-            </div>
-
-            {/* Content */}
-
-            <div className="mt-24 max-w-md">
-
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 text-sm text-blue-50 mb-6">
-
-                <HeartPulse size={15} />
-
-                Doctor Portal
-
-              </div>
-
-              <h2 className="text-4xl font-bold leading-tight">
-                Almost there,
-                <br />
-                Doctor.
-              </h2>
-
-              <p className="mt-5 text-blue-100 leading-7">
-                We've sent a verification code to your
-                registered email address. Enter it here
-                to securely activate your doctor account.
-              </p>
-
-              <div className="mt-8 p-5 rounded-2xl bg-white/10 border border-white/15">
-
-                <p className="text-sm text-blue-50">
-                  🔐 Tiny code. Big responsibility.
-                </p>
-
-                <p className="mt-1 text-sm text-white font-medium">
-                  Don't worry, it's easier than reading
-                  <br />
-                  a patient's handwriting. 😄
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* Bottom */}
-
-          <div className="relative z-10 flex items-center gap-2 text-sm text-blue-100">
-
-            <ShieldCheck size={17} />
-
-            Secure OTP verification
-
-          </div>
-
-        </div>
-
-        {/* ===================================== */}
-        {/* RIGHT SIDE */}
-        {/* ===================================== */}
-
-        <div className="p-7 sm:p-10 lg:p-14 flex items-center">
-
-          <div className="w-full max-w-md mx-auto">
-
-            {/* Mobile Logo */}
-
-            <div className="lg:hidden flex items-center gap-3 mb-10">
-
-              <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
-                <Stethoscope size={23} />
-              </div>
-
-              <div>
-
-                <h1 className="font-bold text-gray-900">
-                  MediCare
-                </h1>
-
-                <p className="text-xs text-gray-500">
-                  Doctor Portal
-                </p>
-
-              </div>
-
-            </div>
-
-            {/* Back */}
-
-            <button
-              type="button"
-              onClick={() =>
-                router.push("/doctor/register")
-              }
-              className="
-                flex
-                items-center
-                gap-2
-                text-sm
-                text-gray-500
-                hover:text-blue-600
-                transition
-                mb-8
-              "
-            >
-
-              <ArrowLeft size={17} />
-
-              Back
-
-            </button>
-
-            {/* Heading */}
-
-            <div className="mb-8">
-
-              <p className="text-sm font-semibold text-blue-600 mb-2">
-                Verification
-              </p>
-
-              <h2 className="text-3xl font-bold text-gray-900">
-                Verify your email
-              </h2>
-
-              <p className="mt-2 text-sm text-gray-500 leading-6">
-                Enter the 6-digit verification code we
-                sent to
-              </p>
-
-              {email && (
-                <p className="mt-1 text-sm font-semibold text-gray-700 break-all">
-                  {email}
-                </p>
-              )}
-
-            </div>
-
-            {/* OTP FORM */}
-
-            <form
-              onSubmit={handleVerify}
-              className="space-y-7"
-            >
-
-              {/* OTP */}
-
-              <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Verification Code
-                </label>
-
-                <div
-                  className="flex gap-2 sm:gap-3"
-                  onPaste={handlePaste}
-                >
-
-                  {otp.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={(el) => {
-                        inputRefs.current[index] =
-                          el;
-                      }}
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete={
-                        index === 0
-                          ? "one-time-code"
-                          : "off"
-                      }
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) =>
-                        handleOtpChange(
-                          e.target.value,
-                          index
-                        )
-                      }
-                      onKeyDown={(e) =>
-                        handleKeyDown(
-                          e,
-                          index
-                        )
-                      }
-                      disabled={loading}
-                      className="
-                        w-full
-                        h-14
-                        rounded-xl
-                        border
-                        border-gray-200
-                        bg-gray-50
-                        text-center
-                        text-xl
-                        font-bold
-                        text-gray-800
-                        outline-none
-                        transition
-                        focus:bg-white
-                        focus:border-blue-500
-                        focus:ring-4
-                        focus:ring-blue-500/10
-                        disabled:opacity-60
-                        disabled:cursor-not-allowed
-                      "
+                    <img
+                      src="/logo/yash-hospital-logo.png"
+                      alt="Yash Hospital"
+                      className="h-12 w-auto max-w-[170px] object-contain"
                     />
-                  ))}
+
+                  </div>
+
+                </div>
+
+                {/* =================================
+                    LEFT CONTENT
+                ================================== */}
+
+                <div className="mt-24">
+
+                  <h1 className="text-4xl font-bold leading-tight">
+                    {leftTitle}
+                    <br />
+                    {leftTitleSecondLine}
+                  </h1>
+
+                  <p className="mt-5 max-w-sm text-base leading-7 text-blue-100">
+                    {leftDescription}
+                  </p>
 
                 </div>
 
               </div>
 
-              {/* RESEND */}
+              {/* =================================
+                  SECURITY BOX
+              ================================== */}
 
-              <div className="text-center -mt-2">
+              <div className="relative z-10 flex items-center gap-3 rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
 
-                {resendTimer > 0 ? (
+                <ShieldCheck
+                  size={25}
+                  className="shrink-0"
+                />
 
-                  <p className="text-sm text-gray-500">
+                <div>
 
-                    Didn't receive the code?{" "}
-
-                    <span className="font-semibold text-blue-600">
-                      Resend in {resendTimer}s
-                    </span>
-
+                  <p className="text-sm font-semibold">
+                    Secure Verification
                   </p>
 
-                ) : (
+                  <p className="text-xs text-blue-100">
+                    Your OTP is valid for 5 minutes.
+                  </p>
 
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={resendLoading}
-                    className="
-                      inline-flex
-                      items-center
-                      justify-center
-                      gap-2
-                      text-sm
-                      font-semibold
-                      text-blue-600
-                      hover:text-blue-700
-                      disabled:opacity-50
-                      disabled:cursor-not-allowed
-                      transition
-                    "
-                  >
-
-                    <RefreshCw
-                      size={16}
-                      className={
-                        resendLoading
-                          ? "animate-spin"
-                          : ""
-                      }
-                    />
-
-                    {resendLoading
-                      ? "Sending..."
-                      : "Resend OTP"}
-
-                  </button>
-
-                )}
-
-              </div>
-
-              {/* VERIFY */}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="
-                  w-full
-                  h-12
-                  rounded-xl
-                  bg-blue-600
-                  hover:bg-blue-700
-                  disabled:opacity-60
-                  disabled:cursor-not-allowed
-                  text-white
-                  font-semibold
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  transition
-                  shadow-sm
-                  hover:shadow-md
-                "
-              >
-
-                {loading ? (
-                  "Verifying..."
-                ) : (
-                  <>
-                    Verify OTP
-
-                    <ShieldCheck size={18} />
-                  </>
-                )}
-
-              </button>
-
-            </form>
-
-            {/* Security */}
-
-            <div className="mt-8 flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-100">
-
-              <ShieldCheck
-                size={19}
-                className="text-blue-600 mt-0.5 shrink-0"
-              />
-
-              <div>
-
-                <p className="text-sm font-medium text-blue-900">
-                  Never share your OTP
-                </p>
-
-                <p className="text-xs text-blue-700/70 mt-1 leading-5">
-                  Hospital staff will never ask you
-                  for your verification code.
-                </p>
+                </div>
 
               </div>
 
             </div>
 
-            {/* Footer */}
+            {/* ==================================
+                RIGHT SECTION
+            =================================== */}
 
-            <p className="text-center text-xs text-gray-400 mt-8">
-              © 2026 MediCare Hospital Management System
-            </p>
+            <div className="flex min-h-[720px] flex-col p-7 sm:p-10 lg:p-12">
+
+              {/* =================================
+                  MOBILE LOGO
+              ================================== */}
+
+              <div className="mb-7 flex items-center justify-center md:hidden">
+
+                <img
+                  src="/logo/yash-hospital-logo.png"
+                  alt="Yash Hospital"
+                  className="h-12 w-auto max-w-[170px] object-contain"
+                />
+
+              </div>
+
+              {/* =================================
+                  BACK
+              ================================== */}
+
+              <button
+                type="button"
+                onClick={handleChangeEmail}
+                disabled={
+                  loading || resending
+                }
+                className="mb-8 flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+
+                <ArrowLeft size={18} />
+
+                Back to Email
+
+              </button>
+
+              {/* =================================
+                  HEADING
+              ================================== */}
+
+              <div className="mb-8">
+
+                {/* Icon */}
+
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50">
+
+                  <Mail
+                    size={24}
+                    className="text-blue-600"
+                  />
+
+                </div>
+
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                  {pageTitle}
+                </h1>
+
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  {pageDescription}
+                </p>
+
+                {/* Email */}
+
+                <div className="mt-4 flex items-center gap-2">
+
+                  <Mail
+                    size={16}
+                    className="shrink-0 text-slate-400"
+                  />
+
+                  <span className="break-all text-sm font-semibold text-slate-700">
+                    {email || "Loading..."}
+                  </span>
+
+                </div>
+
+              </div>
+
+              {/* =================================
+                  OTP FORM
+              ================================== */}
+
+              <form
+                onSubmit={handleVerifyOtp}
+                className="space-y-6"
+              >
+
+                {/* =================================
+                    OTP INPUTS
+                ================================== */}
+
+                <div>
+
+                  <label className="mb-3 block text-sm font-semibold text-slate-700">
+                    Verification Code
+                  </label>
+
+                  <div
+                    className="flex gap-2 sm:gap-3"
+                    onPaste={handlePaste}
+                  >
+
+                    {otp.map(
+                      (digit, index) => (
+                        <input
+                          key={index}
+                          ref={(element) => {
+                            inputRefs.current[index] =
+                              element;
+                          }}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete={
+                            index === 0
+                              ? "one-time-code"
+                              : "off"
+                          }
+                          maxLength={1}
+                          value={digit}
+                          disabled={
+                            loading ||
+                            resending
+                          }
+                          onChange={(e) =>
+                            handleOtpChange(
+                              index,
+                              e.target.value
+                            )
+                          }
+                          onKeyDown={(e) =>
+                            handleKeyDown(
+                              index,
+                              e
+                            )
+                          }
+                          aria-label={`OTP digit ${
+                            index + 1
+                          }`}
+                          className={`h-12 w-full min-w-0 rounded-xl border bg-white text-center text-xl font-bold text-slate-900 outline-none transition sm:h-14 sm:text-2xl ${
+                            digit
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-slate-300"
+                          } focus:border-blue-500 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50`}
+                        />
+                      )
+                    )}
+
+                  </div>
+
+                </div>
+
+                {/* =================================
+                    TIMER
+                ================================== */}
+
+                <div className="flex items-center justify-between">
+
+                  <p className="text-sm text-slate-500">
+                    OTP expires in
+                  </p>
+
+                  {timeLeft > 0 ? (
+                    <span className="font-semibold text-blue-600">
+                      {formatTime(timeLeft)}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-red-500">
+                      OTP Expired
+                    </span>
+                  )}
+
+                </div>
+
+                {/* =================================
+                    VERIFY BUTTON
+                ================================== */}
+
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    resending ||
+                    !isOtpComplete ||
+                    timeLeft <= 0
+                  }
+                  className="flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                >
+
+                  {loading ? (
+                    <>
+
+                      <Loader2
+                        size={19}
+                        className="animate-spin"
+                      />
+
+                      Verifying OTP...
+
+                    </>
+                  ) : (
+                    <>
+
+                      Verify OTP
+
+                      <CheckCircle2
+                        size={18}
+                      />
+
+                    </>
+                  )}
+
+                </button>
+
+              </form>
+
+              {/* =================================
+                  RESEND
+              ================================== */}
+
+              <div className="mt-7 text-center">
+
+                <p className="text-sm text-slate-500">
+                  Didn&apos;t receive the OTP?
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={
+                    resending ||
+                    loading ||
+                    timeLeft > 0
+                  }
+                  className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                >
+
+                  {resending ? (
+                    <>
+
+                      <Loader2
+                        size={16}
+                        className="animate-spin"
+                      />
+
+                      Sending OTP...
+
+                    </>
+                  ) : (
+                    <>
+
+                      <RefreshCw
+                        size={16}
+                      />
+
+                      Resend OTP
+
+                    </>
+                  )}
+
+                </button>
+
+              </div>
+
+              {/* =================================
+                  SECURITY NOTICE
+              ================================== */}
+
+              <div className="mt-7 rounded-xl border border-blue-100 bg-blue-50 p-4">
+
+                <div className="flex gap-3">
+
+                  <ShieldCheck
+                    size={19}
+                    className="mt-0.5 shrink-0 text-blue-600"
+                  />
+
+                  <div>
+
+                    <p className="text-sm font-semibold text-blue-900">
+                      Account verification
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-blue-700">
+                      Never share your OTP with
+                      anyone. Yash Hospital staff
+                      will never ask you for your
+                      verification code.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* =================================
+                  FOOTER
+              ================================== */}
+
+              <p className="mt-auto pt-8 text-center text-xs text-slate-400">
+                © {new Date().getFullYear()} Yash Hospital.
+                All rights reserved.
+              </p>
+
+            </div>
 
           </div>
 
         </div>
 
       </div>
-
     </main>
   );
 }

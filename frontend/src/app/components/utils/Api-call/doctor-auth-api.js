@@ -207,6 +207,74 @@ export const getAdminMe = async () => {
   }
 };
 
+
+// =====================================================
+// DOCTOR LOGIN
+// =====================================================
+
+export const doctorLogin = async (data) => {
+  try {
+    const payload = {
+      email: String(data?.email || "")
+        .trim()
+        .toLowerCase(),
+
+      password: String(data?.password || ""),
+    };
+
+    console.log("========== DOCTOR LOGIN ==========");
+    console.log("Payload:", {
+      email: payload.email,
+      passwordReceived: Boolean(payload.password),
+    });
+
+    if (!payload.email || !payload.password) {
+      return {
+        success: false,
+        message: "Email and password are required",
+      };
+    }
+
+    const response = await client.post(
+      "auth/doctor/login",
+      payload
+    );
+
+    console.log(
+      "DOCTOR LOGIN RESULT:",
+      response.data
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      "========== DOCTOR LOGIN ERROR =========="
+    );
+
+    console.error(
+      "Status:",
+      error.response?.status
+    );
+
+    console.error(
+      "Backend Response:",
+      error.response?.data
+    );
+
+    console.error(
+      "Error Message:",
+      error.message
+    );
+
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Doctor login failed",
+    };
+  }
+};
 // =====================================================
 // GET ADMIN PROFILE
 // =====================================================
@@ -234,6 +302,99 @@ export const getAdminProfile = async () => {
   }
 };
 
+
+
+
+
+
+ 
+
+// =====================================================
+// DOCTOR FORGOT PASSWORD - SEND OTP
+// =====================================================
+
+export const forgotDoctorPassword = async (email) => {
+  try {
+    const response = await client.post(
+      "auth/doctor/forgot-password",
+      {
+        email: String(email).trim().toLowerCase(),
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Unable to send password reset OTP",
+    };
+  }
+};
+
+
+// =====================================================
+// DOCTOR FORGOT PASSWORD - VERIFY OTP
+// =====================================================
+
+export const verifyDoctorResetOtp = async (
+  email,
+  otp
+) => {
+  try {
+    const response = await client.post(
+      "auth/doctor/forgot-password/verify-otp",
+      {
+        email: String(email).trim().toLowerCase(),
+        otp: String(otp).trim(),
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Unable to verify OTP",
+      remainingAttempts:
+        error.response?.data?.remainingAttempts,
+    };
+  }
+};
+
+
+// =====================================================
+// DOCTOR RESET PASSWORD
+// =====================================================
+
+export const resetDoctorPassword = async (
+  data
+) => {
+  try {
+    const response = await client.post(
+      "auth/doctor/reset-password",
+      {
+        resetToken: data.resetToken,
+        password: data.password,
+        confirmPassword: data.confirmPassword,
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Unable to reset password",
+    };
+  }
+};
 // =====================================================
 // UPDATE ADMIN PROFILE
 // =====================================================
