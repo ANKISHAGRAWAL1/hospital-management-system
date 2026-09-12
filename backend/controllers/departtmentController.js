@@ -1,11 +1,14 @@
 const Department = require("../models/Departments");
 
- 
- 
-
+// =====================================================
 // CREATE DEPARTMENT
+// =====================================================
 const createDepartment = async (req, res) => {
   try {
+    console.log("========================================");
+    console.log("🔥 CREATE DEPARTMENT API HIT");
+    console.log("Request Body:", req.body);
+
     const {
       name,
       code,
@@ -14,40 +17,74 @@ const createDepartment = async (req, res) => {
       headDoctor,
     } = req.body;
 
-    // Required fields
-    if (!name || !code) {
+    // Required validation
+    if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Department name and code are required",
+        message: "Department name is required",
       });
     }
 
-    // Check duplicate department
+    if (!code || !code.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Department code is required",
+      });
+    }
+
+    // Clean data
+    const cleanName = name.trim();
+    const cleanCode = code.trim().toUpperCase();
+    const cleanDescription = description?.trim() || "";
+    const cleanLocation = location?.trim() || "";
+    const cleanHeadDoctor = headDoctor?.trim() || "";
+
+    console.log("Clean Data:", {
+      name: cleanName,
+      code: cleanCode,
+      description: cleanDescription,
+      location: cleanLocation,
+      headDoctor: cleanHeadDoctor,
+    });
+
+    // Check duplicate
+    console.log("🔥 CHECKING DUPLICATE");
+
     const existingDepartment = await Department.findOne({
       $or: [
-        { name },
-        { code },
+        { name: cleanName },
+        { code: cleanCode },
       ],
     });
 
     if (existingDepartment) {
+      console.log("❌ DUPLICATE DEPARTMENT FOUND");
+
       return res.status(409).json({
         success: false,
-        message:
-          "Department with this name or code already exists",
+        message: "Department with this name or code already exists",
       });
     }
 
+    console.log("✅ NO DUPLICATE FOUND");
+
     // Create department
+    console.log("🔥 BEFORE DEPARTMENT CREATE");
+
     const department = await Department.create({
-      name,
-      code,
-      description,
-      location,
-      headDoctor,
+      name: cleanName,
+      code: cleanCode,
+      description: cleanDescription,
+      location: cleanLocation,
+      headDoctor: cleanHeadDoctor,
     });
 
-    // Success response
+    console.log("🔥 AFTER DEPARTMENT CREATE");
+    console.log("Department ID:", department._id);
+
+    // Send response
+    console.log("🔥 BEFORE SENDING RESPONSE");
+
     return res.status(201).json({
       success: true,
       message: "Department created successfully",
@@ -55,42 +92,47 @@ const createDepartment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Create Department Error:", error);
+    console.error("❌ CREATE DEPARTMENT ERROR:", error);
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
- 
 
-// Get All Departments
+// =====================================================
+// GET ALL DEPARTMENTS
+// =====================================================
 const getAllDepartments = async (req, res) => {
   try {
     const departments = await Department.find()
-      .populate("headDoctor", "name email phone")
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: departments.length,
       data: departments,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ GET ALL DEPARTMENTS ERROR:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
-// Get Single Department
+
+// =====================================================
+// GET SINGLE DEPARTMENT
+// =====================================================
 const getDepartmentById = async (req, res) => {
   try {
-    const department = await Department.findById(req.params.id)
-      .populate("headDoctor", "name email phone");
+    const department = await Department.findById(req.params.id);
 
     if (!department) {
       return res.status(404).json({
@@ -99,22 +141,27 @@ const getDepartmentById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: department,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ GET DEPARTMENT ERROR:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
-// Update Department
-const updateDepartment = async (req, res) => {
 
-    try {
+// =====================================================
+// UPDATE DEPARTMENT
+// =====================================================
+const updateDepartment = async (req, res) => {
+  try {
     const {
       name,
       code,
@@ -132,36 +179,52 @@ const updateDepartment = async (req, res) => {
       });
     }
 
-    if (name) department.name = name;
-    if (code) department.code = code;
-    if (description !== undefined)
-      department.description = description;
-    if (location !== undefined)
-      department.location = location;
-    if (headDoctor !== undefined)
-      department.headDoctor = headDoctor;
+    if (name !== undefined) {
+      department.name = name.trim();
+    }
+
+    if (code !== undefined) {
+      department.code = code.trim().toUpperCase();
+    }
+
+    if (description !== undefined) {
+      department.description = description.trim();
+    }
+
+    if (location !== undefined) {
+      department.location = location.trim();
+    }
+
+    if (headDoctor !== undefined) {
+      department.headDoctor = headDoctor.trim();
+    }
 
     await department.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Department updated successfully",
       data: department,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ UPDATE DEPARTMENT ERROR:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
-// Update Department Status
+
+// =====================================================
+// UPDATE DEPARTMENT STATUS
+// =====================================================
 const updateDepartmentStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    // Boolean check
     if (typeof status !== "boolean") {
       return res.status(400).json({
         success: false,
@@ -185,29 +248,28 @@ const updateDepartmentStatus = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: `Department status ${
         status ? "activated" : "deactivated"
       } successfully`,
       data: department,
     });
-  } catch (error) {
-    console.error("Update Department Status Error:", error);
 
-    res.status(500).json({
+  } catch (error) {
+    console.error("❌ UPDATE DEPARTMENT STATUS ERROR:", error);
+
+    return res.status(500).json({
       success: false,
-      message: "Internal Server Error",
-      error: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
-module.exports = {
-  updateDepartmentStatus,
-};
 
-// Delete Department
+// =====================================================
+// DELETE DEPARTMENT
+// =====================================================
 const deleteDepartment = async (req, res) => {
   try {
     const department = await Department.findById(req.params.id);
@@ -221,18 +283,25 @@ const deleteDepartment = async (req, res) => {
 
     await department.deleteOne();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Department deleted successfully",
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ DELETE DEPARTMENT ERROR:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
+
+// =====================================================
+// EXPORT ALL FUNCTIONS
+// =====================================================
 module.exports = {
   createDepartment,
   getAllDepartments,

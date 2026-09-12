@@ -6,171 +6,223 @@ const Doctor = require("../models/Doctor");
 // ==========================================
 // PROTECT
 // ==========================================
-const protect = async (req, res, next) => {
-  try {
-    let token;
 
-    // ==========================================
-    // 1. GET TOKEN FROM HTTP-ONLY COOKIE
-    // ==========================================
-    if (req.cookies) {
-      token =
-        req.cookies.adminToken ||
-        req.cookies.doctorToken ||
-        req.cookies.token;
-    }
+const protect = (requiredRole = null) => {
+  return async (req, res, next) => {
+    try {
+      let token = null;
 
-    // ==========================================
-    // 2. FALLBACK: AUTHORIZATION HEADER
-    // ==========================================
-    if (
-      !token &&
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer ")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
-    }
+      // ==========================================
+      // 1. GET TOKEN FROM COOKIE
+      // ==========================================
 
-    // ==========================================
-    // TOKEN MISSING
-    // ==========================================
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Not authorized. Token is missing.",
-      });
-    }
+      if (requiredRole === "admin") {
+        token = req.cookies?.adminToken || null;
+      } else if (requiredRole === "doctor") {
+        token = req.cookies?.doctorToken || null;
+      }
 
-    // ==========================================
-    // VERIFY JWT
-    // ==========================================
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
+      // ==========================================
+      // 2. GET TOKEN FROM AUTHORIZATION HEADER
+      // ==========================================
 
-    let account;
+      if (!token) {
+        const authHeader = req.headers.authorization;
 
-    // ==========================================
-    // ADMIN
-    // ==========================================
-    if (decoded.role === "admin") {
-      account = await User.findById(decoded.id).select(
-        "-password"
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.split(" ")[1];
+        }
+      }
+
+      // ==========================================
+      // 3. TOKEN MISSING
+      // ==========================================
+
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: "Not authorized. Token is missing.",
+        });
+      }
+
+      // ==========================================
+      // 4. JWT SECRET CHECK
+      // ==========================================
+
+      if (!process.env.JWT_SECRET) {
+        console.error("JWT_SECRET is missing");
+
+        return res.status(500).json({
+          success: false,
+          message: "Server configuration error",
+        });
+      }
+
+      // ==========================================
+      // 5. VERIFY TOKEN
+      // ==========================================
+
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
       );
-    }
 
-    // ==========================================
-    // DOCTOR
-    // ==========================================
-    else if (decoded.role === "doctor") {
-      account = await Doctor.findById(decoded.id).select(
-        "-password"
-      );
-    }
+      // ==========================================
+      // 6. CHECK USER ID
+      // ==========================================
 
-    // ==========================================
-    // UNKNOWN ROLE
-    // ==========================================
-    else {
+      if (!decoded?.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid token payload.",
+        });
+      }
+
+      // ==========================================
+      // 7. CHECK REQUIRED ROLE
+      // ==========================================
+
+      if (
+        requiredRole &&
+        decoded.role !== requiredRole
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You are not authorized to access this resource.",
+        });
+      }
+
+      // ==========================================
+      // 8. ADMIN
+      // ==========================================
+
+      if (decoded.role === "admin") {
+        const admin = await User.findById(decoded.id)
+          .select("-password");
+
+        if (!admin) {
+          return res.status(401).json({
+            success: false,
+            message: "Admin not found.",
+          });
+        }
+
+        if (admin.role !== "admin") {
+          return res.status(403).json({
+            success: false,
+            message:
+              "You are not authorized to access this resource.",
+          });
+        }
+
+        if (!admin.isActive) {
+          return res.status(403).json({
+            success: false,
+            message: "Your account is inactive.",
+          });
+        }
+
+        req.user = admin;
+        req.userRole = "admin";
+
+        return next();
+      }
+
+      // ==========================================
+      // 9. DOCTOR
+      // ==========================================
+
+      if (decoded.role === "doctor") {
+        const doctor = await Doctor.findById(decoded.id);
+
+        if (!doctor) {
+          return res.status(401).json({
+            success: false,
+            message: "Doctor not found.",
+          });
+        }
+
+        if (!doctor.status) {
+          return res.status(403).json({
+            success: false,
+            message: "Doctor account is inactive.",
+          });
+        }
+
+        req.user = doctor;
+        req.userRole = "doctor";
+
+        return next();
+      }
+
+      // ==========================================
+      // 10. INVALID ROLE
+      // ==========================================
+
       return res.status(403).json({
         success: false,
         message: "Invalid user role.",
       });
-    }
 
-    // ==========================================
-    // ACCOUNT NOT FOUND
-    // ==========================================
-    if (!account) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
+    } catch (error) {
+      console.error(
+        "Auth Middleware Error:",
+        error.message
+      );
 
-    // ==========================================
-    // ADMIN ACTIVE CHECK
-    // ==========================================
-    if (decoded.role === "admin") {
-      if (!account.isActive) {
-        return res.status(403).json({
+      // ==========================================
+      // TOKEN EXPIRED
+      // ==========================================
+
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({
           success: false,
-          message: "Your account is inactive.",
+          message:
+            "Token has expired. Please login again.",
         });
       }
-    }
 
-    // ==========================================
-    // DOCTOR ACTIVE CHECK
-    // ==========================================
-    if (decoded.role === "doctor") {
-      if (!account.status) {
-        return res.status(403).json({
+      // ==========================================
+      // INVALID TOKEN
+      // ==========================================
+
+      if (error.name === "JsonWebTokenError") {
+        return res.status(401).json({
           success: false,
-          message: "Doctor account is inactive.",
+          message: "Invalid token.",
         });
       }
-    }
 
-    // ==========================================
-    // ATTACH USER
-    // ==========================================
-    req.user = account;
+      // ==========================================
+      // INVALID OBJECT ID
+      // ==========================================
 
-    // ==========================================
-    // ATTACH ROLE
-    // ==========================================
-    req.userRole = decoded.role;
+      if (error.name === "CastError") {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid user.",
+        });
+      }
 
-    // ==========================================
-    // NEXT
-    // ==========================================
-    next();
+      // ==========================================
+      // OTHER ERROR
+      // ==========================================
 
-  } catch (error) {
-    console.error(
-      "Auth Middleware Error:",
-      error.message
-    );
-
-    // ==========================================
-    // EXPIRED TOKEN
-    // ==========================================
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
+      return res.status(500).json({
         success: false,
-        message: "Token has expired. Please login again.",
+        message: "Authentication failed.",
       });
     }
-
-    // ==========================================
-    // INVALID TOKEN
-    // ==========================================
-    if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token.",
-      });
-    }
-
-    // ==========================================
-    // OTHER ERROR
-    // ==========================================
-    return res.status(401).json({
-      success: false,
-      message: "Authentication failed.",
-    });
-  }
+  };
 };
-
 
 // ==========================================
 // AUTHORIZE ROLE
 // ==========================================
+
 const authorize = (...roles) => {
   return (req, res, next) => {
-
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -189,7 +241,6 @@ const authorize = (...roles) => {
     next();
   };
 };
-
 
 module.exports = {
   protect,

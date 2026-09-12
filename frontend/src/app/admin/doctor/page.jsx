@@ -23,8 +23,10 @@ export default function DoctorPage() {
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [departmentFilter, setDepartmentFilter] =
+    useState("All");
+  const [statusFilter, setStatusFilter] =
+    useState("All");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -42,18 +44,24 @@ export default function DoctorPage() {
         setDoctors(response?.data || []);
       } else {
         setDoctors([]);
+
         notify(
-          response?.message || "Unable to fetch doctors",
+          response?.message ||
+            "Unable to fetch doctors",
           false
         );
       }
     } catch (error) {
-      console.error("Fetch Doctors Error:", error);
+      console.error(
+        "Fetch Doctors Error:",
+        error
+      );
 
       setDoctors([]);
 
       notify(
         error?.response?.data?.message ||
+          error?.message ||
           "Unable to fetch doctors",
         false
       );
@@ -72,7 +80,9 @@ export default function DoctorPage() {
   const getDoctorName = (doctor) => {
     if (!doctor) return "—";
 
-    if (doctor.name) return doctor.name;
+    if (doctor.name) {
+      return doctor.name;
+    }
 
     const fullName = [
       doctor.firstName,
@@ -88,9 +98,13 @@ export default function DoctorPage() {
   // DEPARTMENT NAME
   // =========================
   const getDepartmentName = (doctor) => {
-    if (!doctor?.department) return "—";
+    if (!doctor?.department) {
+      return "—";
+    }
 
-    if (typeof doctor.department === "string") {
+    if (
+      typeof doctor.department === "string"
+    ) {
       return doctor.department;
     }
 
@@ -105,27 +119,47 @@ export default function DoctorPage() {
   // SPECIALIZATION
   // =========================
   const getSpecialization = (doctor) => {
-    return (
-      doctor?.specialization ||
-      doctor?.speciality ||
-      doctor?.specialty ||
-      "—"
-    );
+    const specialization =
+      doctor?.specialization ??
+      doctor?.speciality ??
+      doctor?.specialty;
+
+    if (!specialization) {
+      return "—";
+    }
+
+    // New schema: [String]
+    if (Array.isArray(specialization)) {
+      return specialization.length > 0
+        ? specialization.join(", ")
+        : "—";
+    }
+
+    // Old data: String
+    return String(specialization);
   };
 
   // =========================
   // QUALIFICATION
   // =========================
   const getQualification = (doctor) => {
-    if (Array.isArray(doctor?.qualification)) {
-      return doctor.qualification.join(", ");
+    const qualification =
+      doctor?.qualification ??
+      doctor?.qualifications;
+
+    if (!qualification) {
+      return "—";
     }
 
-    return (
-      doctor?.qualification ||
-      doctor?.qualifications ||
-      "—"
-    );
+    // New schema: [String]
+    if (Array.isArray(qualification)) {
+      return qualification.length > 0
+        ? qualification.join(", ")
+        : "—";
+    }
+
+    // Old data: String
+    return String(qualification);
   };
 
   // =========================
@@ -160,13 +194,19 @@ export default function DoctorPage() {
   // =========================
   const departments = useMemo(() => {
     const departmentList = doctors
-      .map((doctor) => getDepartmentName(doctor))
+      .map((doctor) =>
+        getDepartmentName(doctor)
+      )
       .filter(
         (department) =>
-          department && department !== "—"
+          department &&
+          department !== "—"
       );
 
-    return ["All", ...new Set(departmentList)];
+    return [
+      "All",
+      ...new Set(departmentList),
+    ];
   }, [doctors]);
 
   // =========================
@@ -179,19 +219,29 @@ export default function DoctorPage() {
 
     return doctors.filter((doctor) => {
       const doctorName =
-        getDoctorName(doctor).toLowerCase();
+        String(
+          getDoctorName(doctor)
+        ).toLowerCase();
 
       const email =
-        doctor?.email?.toLowerCase() || "";
+        String(
+          doctor?.email || ""
+        ).toLowerCase();
 
       const specialization =
-        getSpecialization(doctor).toLowerCase();
+        String(
+          getSpecialization(doctor)
+        ).toLowerCase();
 
       const department =
-        getDepartmentName(doctor).toLowerCase();
+        String(
+          getDepartmentName(doctor)
+        ).toLowerCase();
 
       const phone =
-        getMobileNumber(doctor).toLowerCase();
+        String(
+          getMobileNumber(doctor)
+        ).toLowerCase();
 
       const matchesSearch =
         !searchValue ||
@@ -232,13 +282,15 @@ export default function DoctorPage() {
   const totalPages = Math.max(
     1,
     Math.ceil(
-      filteredDoctors.length / itemsPerPage
+      filteredDoctors.length /
+        itemsPerPage
     )
   );
 
   const paginatedDoctors = useMemo(() => {
     const start =
-      (currentPage - 1) * itemsPerPage;
+      (currentPage - 1) *
+      itemsPerPage;
 
     return filteredDoctors.slice(
       start,
@@ -261,7 +313,10 @@ export default function DoctorPage() {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
+  }, [
+    currentPage,
+    totalPages,
+  ]);
 
   const startItem =
     filteredDoctors.length === 0
@@ -284,6 +339,7 @@ export default function DoctorPage() {
         <div className="mx-auto max-w-[1600px]">
           <div className="mb-6">
             <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-200" />
+
             <div className="mt-2 h-4 w-72 animate-pulse rounded bg-slate-200" />
           </div>
 
@@ -294,7 +350,7 @@ export default function DoctorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] p-6">
+    <div className="min-h-screen bg-[#F8FAFC] p-6 text-[#0F172A]">
       <div className="mx-auto max-w-[1600px]">
 
         {/* ================= HEADER ================= */}
@@ -305,7 +361,8 @@ export default function DoctorPage() {
             </h1>
 
             <p className="mt-1 text-sm text-[#64748B]">
-              Manage hospital doctors and their information
+              Manage hospital doctors and
+              their information
             </p>
           </div>
 
@@ -392,7 +449,9 @@ export default function DoctorPage() {
             <select
               value={departmentFilter}
               onChange={(e) =>
-                setDepartmentFilter(e.target.value)
+                setDepartmentFilter(
+                  e.target.value
+                )
               }
               className="
                 h-10
@@ -409,23 +468,27 @@ export default function DoctorPage() {
                 focus:ring-[#0F766E]/10
               "
             >
-              {departments.map((department) => (
-                <option
-                  key={department}
-                  value={department}
-                >
-                  {department === "All"
-                    ? "All Departments"
-                    : department}
-                </option>
-              ))}
+              {departments.map(
+                (department) => (
+                  <option
+                    key={department}
+                    value={department}
+                  >
+                    {department === "All"
+                      ? "All Departments"
+                      : department}
+                  </option>
+                )
+              )}
             </select>
 
             {/* STATUS */}
             <select
               value={statusFilter}
               onChange={(e) =>
-                setStatusFilter(e.target.value)
+                setStatusFilter(
+                  e.target.value
+                )
               }
               className="
                 h-10
@@ -520,7 +583,8 @@ export default function DoctorPage() {
 
               {/* TABLE BODY */}
               <tbody>
-                {paginatedDoctors.length === 0 ? (
+                {paginatedDoctors.length ===
+                0 ? (
                   <tr>
                     <td
                       colSpan={9}
@@ -548,204 +612,226 @@ export default function DoctorPage() {
                         </p>
 
                         <p className="mt-1 text-xs text-[#64748B]">
-                          Try changing your search or filters.
+                          Try changing your
+                          search or filters.
                         </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  paginatedDoctors.map((doctor) => {
-                    const doctorName =
-                      getDoctorName(doctor);
+                  paginatedDoctors.map(
+                    (doctor) => {
+                      const doctorName =
+                        getDoctorName(
+                          doctor
+                        );
 
-                    const profileImage =
-                      doctor?.profileImage ||
-                      doctor?.profile ||
-                      doctor?.image;
+                      const profileImage =
+                        doctor?.profileImage ||
+                        doctor?.profile ||
+                        doctor?.image;
 
-                    return (
-                      <tr
-                        key={doctor?._id}
-                        className="
-                          border-b
-                          border-[#E2E8F0]
-                          last:border-0
-                          transition
-                          hover:bg-[#F8FAFC]
-                        "
-                      >
-                        {/* PROFILE */}
-                        <td className="px-5 py-4">
-                          <div
-                            className="
-                              flex
-                              h-11
-                              w-11
-                              items-center
-                              justify-center
-                              overflow-hidden
-                              rounded-full
-                              border
-                              border-[#CCFBF1]
-                              bg-[#F0FDFA]
-                            "
-                          >
-                            {profileImage ? (
-                              <img
-                                src={getDoctorImageUrl(
-                                  profileImage
-                                )}
-                                alt={doctorName}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span
-                                className="
-                                  text-sm
-                                  font-bold
-                                  text-[#0F766E]
-                                "
-                              >
-                                {doctorName
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* DOCTOR */}
-                        <td className="px-5 py-4">
-                          <div>
-                            <p className="text-sm font-semibold text-[#0F172A]">
-                              {doctorName}
-                            </p>
-
-                            <p className="mt-1 text-xs text-[#64748B]">
-                              {doctor?.email || "—"}
-                            </p>
-                          </div>
-                        </td>
-
-                        {/* SPECIALIZATION */}
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-[#475569]">
-                            {getSpecialization(
-                              doctor
-                            )}
-                          </span>
-                        </td>
-
-                        {/* DEPARTMENT */}
-                        <td className="px-5 py-4">
-                          <span
-                            className="
-                              inline-flex
-                              items-center
-                              rounded-md
-                              border
-                              border-[#CCFBF1]
-                              bg-[#F0FDFA]
-                              px-2.5
-                              py-1
-                              text-xs
-                              font-medium
-                              text-[#0F766E]
-                            "
-                          >
-                            {getDepartmentName(
-                              doctor
-                            )}
-                          </span>
-                        </td>
-
-                        {/* QUALIFICATION */}
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-[#475569]">
-                            {getQualification(
-                              doctor
-                            )}
-                          </span>
-                        </td>
-
-                        {/* EXPERIENCE */}
-                        <td className="px-5 py-4">
-                          <span className="text-sm font-medium text-[#475569]">
-                            {getExperience(doctor)}
-                          </span>
-                        </td>
-
-                        {/* MOBILE */}
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-[#475569]">
-                            {getMobileNumber(doctor)}
-                          </span>
-                        </td>
-
-                        {/* STATUS */}
-                        <td className="px-5 py-4 text-center">
-                          <Status
-                            value={doctor?.status}
-                            id={doctor?._id}
-                            endpoint="doctors"
-                          />
-                        </td>
-
-                        {/* ACTIONS */}
-                        <td className="px-5 py-4">
-                          <div className="flex items-center justify-center gap-1">
-
-                            {/* VIEW */}
-                            <Link
-                              href={`/admin/doctor/${doctor?._id}`}
-                              title="View Doctor"
+                      return (
+                        <tr
+                          key={doctor?._id}
+                          className="
+                            border-b
+                            border-[#E2E8F0]
+                            last:border-0
+                            transition
+                            hover:bg-[#F8FAFC]
+                          "
+                        >
+                          {/* PROFILE */}
+                          <td className="px-5 py-4">
+                            <div
                               className="
                                 flex
-                                h-8
-                                w-8
+                                h-11
+                                w-11
                                 items-center
                                 justify-center
-                                rounded-lg
-                                text-[#64748B]
-                                transition
-                                hover:bg-[#F0FDFA]
-                                hover:text-[#0F766E]
+                                overflow-hidden
+                                rounded-full
+                                border
+                                border-[#CCFBF1]
+                                bg-[#F0FDFA]
                               "
                             >
-                              <Eye size={17} />
-                            </Link>
+                              {profileImage ? (
+                                <img
+                                  src={getDoctorImageUrl(
+                                    profileImage
+                                  )}
+                                  alt={
+                                    doctorName
+                                  }
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span
+                                  className="
+                                    text-sm
+                                    font-bold
+                                    text-[#0F766E]
+                                  "
+                                >
+                                  {doctorName
+                                    .charAt(
+                                      0
+                                    )
+                                    .toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                          </td>
 
-                            {/* EDIT */}
-                            <Link
-                              href={`/admin/doctors/edit/${doctor?._id}`}
-                              title="Edit Doctor"
+                          {/* DOCTOR */}
+                          <td className="px-5 py-4">
+                            <div>
+                              <p className="text-sm font-semibold text-[#0F172A]">
+                                {doctorName}
+                              </p>
+
+                              <p className="mt-1 text-xs text-[#64748B]">
+                                {doctor?.email ||
+                                  "—"}
+                              </p>
+                            </div>
+                          </td>
+
+                          {/* SPECIALIZATION */}
+                          <td className="px-5 py-4">
+                            <span className="text-sm text-[#475569]">
+                              {getSpecialization(
+                                doctor
+                              )}
+                            </span>
+                          </td>
+
+                          {/* DEPARTMENT */}
+                          <td className="px-5 py-4">
+                            <span
                               className="
-                                flex
-                                h-8
-                                w-8
+                                inline-flex
                                 items-center
-                                justify-center
-                                rounded-lg
-                                text-[#64748B]
-                                transition
-                                hover:bg-[#F0FDFA]
-                                hover:text-[#0F766E]
+                                rounded-md
+                                border
+                                border-[#CCFBF1]
+                                bg-[#F0FDFA]
+                                px-2.5
+                                py-1
+                                text-xs
+                                font-medium
+                                text-[#0F766E]
                               "
                             >
-                              <Pencil size={17} />
-                            </Link>
+                              {getDepartmentName(
+                                doctor
+                              )}
+                            </span>
+                          </td>
 
-                            {/* DELETE */}
-                            <Delete
+                          {/* QUALIFICATION */}
+                          <td className="px-5 py-4">
+                            <span className="text-sm text-[#475569]">
+                              {getQualification(
+                                doctor
+                              )}
+                            </span>
+                          </td>
+
+                          {/* EXPERIENCE */}
+                          <td className="px-5 py-4">
+                            <span className="text-sm font-medium text-[#475569]">
+                              {getExperience(
+                                doctor
+                              )}
+                            </span>
+                          </td>
+
+                          {/* MOBILE */}
+                          <td className="px-5 py-4">
+                            <span className="text-sm text-[#475569]">
+                              {getMobileNumber(
+                                doctor
+                              )}
+                            </span>
+                          </td>
+
+                          {/* STATUS */}
+                          <td className="px-5 py-4 text-center">
+                            <Status
+                              value={
+                                doctor?.status
+                              }
                               id={doctor?._id}
                               endpoint="doctors"
-                              onSuccess={fetchDoctors}
                             />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                          </td>
+
+                          {/* ACTIONS */}
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-center gap-1">
+
+                              {/* VIEW */}
+                              <Link
+                                href={`/admin/doctor/${doctor?._id}`}
+                                title="View Doctor"
+                                className="
+                                  flex
+                                  h-8
+                                  w-8
+                                  items-center
+                                  justify-center
+                                  rounded-lg
+                                  text-[#64748B]
+                                  transition
+                                  hover:bg-[#F0FDFA]
+                                  hover:text-[#0F766E]
+                                "
+                              >
+                                <Eye
+                                  size={17}
+                                />
+                              </Link>
+
+                              {/* EDIT */}
+                              <Link
+                                href={`/admin/doctors/edit/${doctor?._id}`}
+                                title="Edit Doctor"
+                                className="
+                                  flex
+                                  h-8
+                                  w-8
+                                  items-center
+                                  justify-center
+                                  rounded-lg
+                                  text-[#64748B]
+                                  transition
+                                  hover:bg-[#F0FDFA]
+                                  hover:text-[#0F766E]
+                                "
+                              >
+                                <Pencil
+                                  size={17}
+                                />
+                              </Link>
+
+                              {/* DELETE */}
+                              <Delete
+                                id={doctor?._id}
+                                endpoint="doctors"
+                                onSuccess={
+                                  fetchDoctors
+                                }
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                  )
                 )}
               </tbody>
             </table>
@@ -788,10 +874,16 @@ export default function DoctorPage() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                disabled={currentPage === 1}
+                disabled={
+                  currentPage === 1
+                }
                 onClick={() =>
-                  setCurrentPage((prev) =>
-                    Math.max(1, prev - 1)
+                  setCurrentPage(
+                    (prev) =>
+                      Math.max(
+                        1,
+                        prev - 1
+                      )
                   )
                 }
                 className="
@@ -816,10 +908,14 @@ export default function DoctorPage() {
 
               {Array.from(
                 { length: totalPages },
-                (_, index) => index + 1
+                (_, index) =>
+                  index + 1
               )
                 .slice(
-                  Math.max(0, currentPage - 3),
+                  Math.max(
+                    0,
+                    currentPage - 3
+                  ),
                   Math.min(
                     totalPages,
                     currentPage + 2
@@ -830,7 +926,9 @@ export default function DoctorPage() {
                     type="button"
                     key={page}
                     onClick={() =>
-                      setCurrentPage(page)
+                      setCurrentPage(
+                        page
+                      )
                     }
                     className={`
                       h-8
@@ -841,7 +939,8 @@ export default function DoctorPage() {
                       font-semibold
                       transition
                       ${
-                        currentPage === page
+                        currentPage ===
+                        page
                           ? "bg-[#0F766E] text-white"
                           : "border border-[#E2E8F0] bg-white text-[#475569] hover:border-[#0F766E] hover:text-[#0F766E]"
                       }
@@ -854,14 +953,16 @@ export default function DoctorPage() {
               <button
                 type="button"
                 disabled={
-                  currentPage === totalPages
+                  currentPage ===
+                  totalPages
                 }
                 onClick={() =>
-                  setCurrentPage((prev) =>
-                    Math.min(
-                      totalPages,
-                      prev + 1
-                    )
+                  setCurrentPage(
+                    (prev) =>
+                      Math.min(
+                        totalPages,
+                        prev + 1
+                      )
                   )
                 }
                 className="

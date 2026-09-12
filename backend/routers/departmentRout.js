@@ -16,58 +16,52 @@ const {
 
 const router = express.Router();
 
- // Get all departments
+// Get all departments
 router.get(
   "/",
-  protect,
+  protect("admin"),
   authorize("admin"),
   getAllDepartments
 );
 
-
 // Get single department
 router.get(
   "/:id",
-  protect,
+  protect("admin"),
   authorize("admin"),
   getDepartmentById
 );
 
-
 // Create department
 router.post(
   "/",
-  protect,
+  protect("admin"),
   authorize("admin"),
   createDepartment
 );
 
-
 // Update complete department
 router.put(
   "/:id",
-  protect,
+  protect("admin"),
   authorize("admin"),
   updateDepartment
 );
 
-
 // Update department status
 router.patch(
   "/:id/status",
-  protect,
+  protect("admin"),
   authorize("admin"),
   updateDepartmentStatus
 );
 
-
 // Delete department
 router.delete(
   "/:id",
-  protect,
+  protect("admin"),
   authorize("admin"),
   deleteDepartment
 );
-
 
 module.exports = router;

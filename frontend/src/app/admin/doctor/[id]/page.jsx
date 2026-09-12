@@ -1,4 +1,3 @@
- 
 "use client";
 
 import {
@@ -16,6 +15,7 @@ import {
   IndianRupee,
   IdCard,
   Building2,
+  Video,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -36,9 +36,10 @@ export default function DoctorViewPage() {
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // =====================================
-  // FETCH DOCTOR BY ID
-  // =====================================
+  // ==========================================
+  // FETCH DOCTOR
+  // ==========================================
+
   useEffect(() => {
     if (!doctorId) return;
 
@@ -51,6 +52,14 @@ export default function DoctorViewPage() {
         console.log("Doctor API Response:", response);
 
         if (response?.success) {
+          /*
+            Depending on your backend response structure,
+            support both:
+
+            data: doctor
+            data: { data: doctor }
+          */
+
           const doctorData =
             response?.data?.data ||
             response?.data ||
@@ -64,10 +73,14 @@ export default function DoctorViewPage() {
           );
         }
       } catch (error) {
-        console.error("Get Doctor Error:", error);
+        console.error(
+          "Get Doctor Error:",
+          error
+        );
 
         notify(
           error?.response?.data?.message ||
+            error?.message ||
             "Unable to fetch doctor details",
           false
         );
@@ -79,30 +92,26 @@ export default function DoctorViewPage() {
     fetchDoctor();
   }, [doctorId]);
 
-  // =====================================
-  // HELPERS
-  // =====================================
+  // ==========================================
+  // DOCTOR NAME
+  // ==========================================
 
   const getDoctorName = () => {
     if (!doctor) return "Doctor";
 
-    if (doctor?.name) {
-      return doctor.name;
-    }
+    const fullName = [
+      doctor?.firstName,
+      doctor?.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    return (
-      [
-        doctor?.firstName,
-        doctor?.lastName,
-      ]
-        .filter(Boolean)
-        .join(" ") || "Doctor"
-    );
+    return fullName || "Doctor";
   };
 
-  // =====================================
+  // ==========================================
   // DEPARTMENT
-  // =====================================
+  // ==========================================
 
   const getDepartmentName = () => {
     const department = doctor?.department;
@@ -115,86 +124,62 @@ export default function DoctorViewPage() {
       return department;
     }
 
-    return (
-      department?.name ||
-      department?.departmentName ||
-      department?.title ||
-      "—"
-    );
+    return department?.name || "—";
   };
 
-  // =====================================
-  // QUALIFICATION
-  // =====================================
-
-  const getQualification = () => {
-    const qualification = doctor?.qualification;
-
-    if (Array.isArray(qualification)) {
-      return qualification.join(", ");
-    }
-
-    if (
-      qualification &&
-      typeof qualification === "object"
-    ) {
-      return (
-        qualification?.name ||
-        qualification?.title ||
-        "—"
-      );
-    }
-
-    if (
-      doctor?.qualifications &&
-      typeof doctor.qualifications === "string"
-    ) {
-      return doctor.qualifications;
-    }
-
-    return qualification || "—";
-  };
-
-  // =====================================
-  // PHONE
-  // =====================================
-
-  const getPhone = () => {
-    return (
-      doctor?.phone ||
-      doctor?.mobile ||
-      doctor?.mobileNumber ||
-      "—"
-    );
-  };
-
-  // =====================================
+  // ==========================================
   // SPECIALIZATION
-  // =====================================
+  // ==========================================
 
   const getSpecialization = () => {
     const specialization =
-      doctor?.specialization ||
-      doctor?.speciality ||
-      doctor?.specialty;
+      doctor?.specialization;
 
-    if (
-      specialization &&
-      typeof specialization === "object"
-    ) {
-      return (
-        specialization?.name ||
-        specialization?.title ||
-        "—"
-      );
+    if (!specialization) {
+      return "—";
     }
 
-    return specialization || "—";
+    if (Array.isArray(specialization)) {
+      return specialization.length
+        ? specialization.join(", ")
+        : "—";
+    }
+
+    return String(specialization);
   };
 
-  // =====================================
+  // ==========================================
+  // QUALIFICATION
+  // ==========================================
+
+  const getQualification = () => {
+    const qualification =
+      doctor?.qualification;
+
+    if (!qualification) {
+      return "—";
+    }
+
+    if (Array.isArray(qualification)) {
+      return qualification.length
+        ? qualification.join(", ")
+        : "—";
+    }
+
+    return String(qualification);
+  };
+
+  // ==========================================
+  // PHONE
+  // ==========================================
+
+  const getPhone = () => {
+    return doctor?.phone || "—";
+  };
+
+  // ==========================================
   // EXPERIENCE
-  // =====================================
+  // ==========================================
 
   const getExperience = () => {
     if (
@@ -208,44 +193,59 @@ export default function DoctorViewPage() {
     return "—";
   };
 
-  // =====================================
-  // ADDRESS
-  // =====================================
+  // ==========================================
+  // CONSULTATION FEE
+  // ==========================================
 
-  const getAddress = () => {
-    const address = doctor?.address;
-
-    // If address is not available
-    if (!address) {
-      return doctor?.fullAddress || "—";
-    }
-
-    // If address is string
-    if (typeof address === "string") {
-      return address;
-    }
-
-    // If address is object
-    if (typeof address === "object") {
-      return (
-        address?.fullAddress ||
-        [
-          address?.city,
-          address?.state,
-          address?.pincode,
-        ]
-          .filter(Boolean)
-          .join(", ") ||
-        "—"
-      );
+  const getConsultationFee = () => {
+    if (
+      doctor?.consultationFee !== undefined &&
+      doctor?.consultationFee !== null &&
+      doctor?.consultationFee !== ""
+    ) {
+      return `₹${doctor.consultationFee}`;
     }
 
     return "—";
   };
 
-  // =====================================
+  // ==========================================
+  // ADDRESS
+  // ==========================================
+
+  const getAddress = () => {
+    const address = doctor?.address;
+
+    if (!address) {
+      return "—";
+    }
+
+    if (typeof address === "string") {
+      return address;
+    }
+
+    if (typeof address === "object") {
+      if (address?.fullAddress) {
+        return address.fullAddress;
+      }
+
+      const parts = [
+        address?.city,
+        address?.state,
+        address?.pincode,
+      ].filter(Boolean);
+
+      return parts.length
+        ? parts.join(", ")
+        : "—";
+    }
+
+    return "—";
+  };
+
+  // ==========================================
   // CITY
-  // =====================================
+  // ==========================================
 
   const getCity = () => {
     if (
@@ -255,12 +255,12 @@ export default function DoctorViewPage() {
       return doctor.address?.city || "—";
     }
 
-    return doctor?.city || "—";
+    return "—";
   };
 
-  // =====================================
+  // ==========================================
   // STATE
-  // =====================================
+  // ==========================================
 
   const getState = () => {
     if (
@@ -270,12 +270,12 @@ export default function DoctorViewPage() {
       return doctor.address?.state || "—";
     }
 
-    return doctor?.state || "—";
+    return "—";
   };
 
-  // =====================================
+  // ==========================================
   // PINCODE
-  // =====================================
+  // ==========================================
 
   const getPincode = () => {
     if (
@@ -285,19 +285,23 @@ export default function DoctorViewPage() {
       return doctor.address?.pincode || "—";
     }
 
-    return doctor?.pincode || "—";
+    return "—";
   };
 
-  // =====================================
-  // FORMAT DATE
-  // =====================================
+  // ==========================================
+  // DATE FORMAT
+  // ==========================================
 
   const formatDate = (date) => {
     if (!date) return "—";
 
     const parsedDate = new Date(date);
 
-    if (Number.isNaN(parsedDate.getTime())) {
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
       return "—";
     }
 
@@ -311,9 +315,33 @@ export default function DoctorViewPage() {
     );
   };
 
-  // =====================================
+  // ==========================================
+  // AVAILABILITY
+  // ==========================================
+
+  const availability = Array.isArray(
+    doctor?.availability
+  )
+    ? doctor.availability
+    : [];
+
+  // ==========================================
+  // PROFILE IMAGE
+  // ==========================================
+
+  const profileImage =
+    doctor?.profileImage || "";
+
+  // ==========================================
+  // STATUS
+  // ==========================================
+
+  const isActive =
+    doctor?.status === true;
+
+  // ==========================================
   // LOADING
-  // =====================================
+  // ==========================================
 
   if (loading) {
     return (
@@ -334,17 +362,17 @@ export default function DoctorViewPage() {
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="h-80 animate-pulse rounded-xl bg-white" />
-
             <div className="h-80 animate-pulse rounded-xl bg-white" />
           </div>
+
         </div>
       </div>
     );
   }
 
-  // =====================================
+  // ==========================================
   // NOT FOUND
-  // =====================================
+  // ==========================================
 
   if (!doctor) {
     return (
@@ -379,35 +407,16 @@ export default function DoctorViewPage() {
     );
   }
 
-  // =====================================
-  // DATA
-  // =====================================
-
   const doctorName = getDoctorName();
-
-  const profileImage =
-    doctor?.profileImage ||
-    doctor?.profile ||
-    doctor?.image;
-
-  const isActive =
-    doctor?.status === true ||
-    doctor?.status === "active" ||
-    doctor?.status === "Active";
-
-  const availableDays =
-    Array.isArray(doctor?.availableDays)
-      ? doctor.availableDays
-      : [];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 text-[#0F172A]">
 
       <div className="mx-auto max-w-[1400px]">
 
-        {/* =====================================
+        {/* ==========================================
             HEADER
-        ===================================== */}
+        ========================================== */}
 
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
@@ -433,7 +442,7 @@ export default function DoctorViewPage() {
           </div>
 
           <Link
-            href={`/admin/doctor/edit/${doctor?._id}`}
+            href={`/admin/doctor/edit/${doctor._id}`}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0F766E] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#115E59]"
           >
             <Pencil size={17} />
@@ -442,9 +451,9 @@ export default function DoctorViewPage() {
 
         </div>
 
-        {/* =====================================
+        {/* ==========================================
             PROFILE CARD
-        ===================================== */}
+        ========================================== */}
 
         <div className="mb-6 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
 
@@ -460,7 +469,9 @@ export default function DoctorViewPage() {
 
                   {profileImage ? (
                     <img
-                      src={getDoctorImageUrl(profileImage)}
+                      src={getDoctorImageUrl(
+                        profileImage
+                      )}
                       alt={doctorName}
                       className="h-full w-full object-cover"
                     />
@@ -522,11 +533,12 @@ export default function DoctorViewPage() {
                   )}
 
                 </div>
+
               </div>
 
               {/* QUICK INFO */}
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
                 <QuickInfo
                   label="Experience"
@@ -540,30 +552,26 @@ export default function DoctorViewPage() {
 
                 <QuickInfo
                   label="Consultation"
-                  value={
-                    doctor?.consultationFee !== undefined &&
-                    doctor?.consultationFee !== null &&
-                    doctor?.consultationFee !== ""
-                      ? `₹${doctor.consultationFee}`
-                      : "—"
-                  }
+                  value={getConsultationFee()}
                 />
 
               </div>
 
             </div>
+
           </div>
+
         </div>
 
-        {/* =====================================
-            INFORMATION
-        ===================================== */}
+        {/* ==========================================
+            INFORMATION GRID
+        ========================================== */}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
-          {/* =====================================
-              PERSONAL
-          ===================================== */}
+          {/* ==========================================
+              PERSONAL INFORMATION
+          ========================================== */}
 
           <InfoSection
             icon={UserRound}
@@ -610,9 +618,9 @@ export default function DoctorViewPage() {
 
           </InfoSection>
 
-          {/* =====================================
-              PROFESSIONAL
-          ===================================== */}
+          {/* ==========================================
+              PROFESSIONAL INFORMATION
+          ========================================== */}
 
           <InfoSection
             icon={Stethoscope}
@@ -646,13 +654,7 @@ export default function DoctorViewPage() {
             <InfoItem
               icon={IndianRupee}
               label="Consultation Fee"
-              value={
-                doctor?.consultationFee !== undefined &&
-                doctor?.consultationFee !== null &&
-                doctor?.consultationFee !== ""
-                  ? `₹${doctor.consultationFee}`
-                  : "—"
-              }
+              value={getConsultationFee()}
             />
 
             <InfoItem
@@ -663,9 +665,9 @@ export default function DoctorViewPage() {
 
           </InfoSection>
 
-          {/* =====================================
+          {/* ==========================================
               AVAILABILITY
-          ===================================== */}
+          ========================================== */}
 
           <InfoSection
             icon={Clock3}
@@ -674,48 +676,196 @@ export default function DoctorViewPage() {
 
             <div className="col-span-full">
 
-              <p className="mb-3 text-sm font-medium text-[#475569]">
-                Available Days
-              </p>
+              <div className="mb-4 flex items-center justify-between">
 
-              {availableDays.length > 0 ? (
+                <div>
+                  <p className="text-sm font-semibold text-[#0F172A]">
+                    Doctor Schedule
+                  </p>
 
-                <div className="flex flex-wrap gap-2">
-
-                  {availableDays.map((day, index) => (
-                    <span
-                      key={`${day}-${index}`}
-                      className="rounded-lg border border-[#CCFBF1] bg-[#F0FDFA] px-3 py-1.5 text-xs font-semibold text-[#0F766E]"
-                    >
-                      {typeof day === "object"
-                        ? day?.name || "Day"
-                        : day}
-                    </span>
-                  ))}
-
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    Hospital and video consultation timings
+                  </p>
                 </div>
 
+              </div>
+
+              {availability.length === 0 ? (
+                <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-5 text-center">
+                  <Clock3
+                    size={24}
+                    className="mx-auto text-[#94A3B8]"
+                  />
+
+                  <p className="mt-2 text-sm text-[#64748B]">
+                    No availability specified
+                  </p>
+                </div>
               ) : (
+                <div className="space-y-4">
 
-                <p className="text-sm text-[#64748B]">
-                  No availability specified
-                </p>
+                  {availability.map(
+                    (item, index) => {
 
+                      const hospitalSlots =
+                        Array.isArray(
+                          item?.hospital?.slots
+                        )
+                          ? item.hospital.slots
+                          : [];
+
+                      const videoSlots =
+                        Array.isArray(
+                          item?.video?.slots
+                        )
+                          ? item.video.slots
+                          : [];
+
+                      return (
+                        <div
+                          key={`${item?.day}-${index}`}
+                          className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4"
+                        >
+
+                          {/* DAY */}
+
+                          <div className="mb-4 flex items-center justify-between">
+
+                            <span className="rounded-lg border border-[#CCFBF1] bg-[#F0FDFA] px-3 py-1.5 text-xs font-semibold text-[#0F766E]">
+                              {item?.day || "Day"}
+                            </span>
+
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                            {/* HOSPITAL */}
+
+                            <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+
+                              <div className="flex items-center gap-2">
+
+                                <Building2
+                                  size={16}
+                                  className="text-[#0F766E]"
+                                />
+
+                                <p className="text-sm font-semibold text-[#0F172A]">
+                                  Hospital
+                                </p>
+
+                              </div>
+
+                              {!item?.hospital?.enabled ? (
+                                <p className="mt-3 text-xs text-[#94A3B8]">
+                                  Not Available
+                                </p>
+                              ) : hospitalSlots.length === 0 ? (
+                                <p className="mt-3 text-xs text-[#94A3B8]">
+                                  No slots configured
+                                </p>
+                              ) : (
+                                <div className="mt-3 space-y-2">
+
+                                  {hospitalSlots.map(
+                                    (
+                                      slot,
+                                      slotIndex
+                                    ) => (
+                                      <div
+                                        key={slotIndex}
+                                        className="flex items-center gap-2 text-xs font-medium text-[#475569]"
+                                      >
+                                        <Clock3
+                                          size={14}
+                                          className="text-[#0F766E]"
+                                        />
+
+                                        <span>
+                                          {slot?.startTime ||
+                                            "—"}{" "}
+                                          -{" "}
+                                          {slot?.endTime ||
+                                            "—"}
+                                        </span>
+                                      </div>
+                                    )
+                                  )}
+
+                                </div>
+                              )}
+
+                            </div>
+
+                            {/* VIDEO */}
+
+                            <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+
+                              <div className="flex items-center gap-2">
+
+                                <Video
+                                  size={16}
+                                  className="text-[#0F766E]"
+                                />
+
+                                <p className="text-sm font-semibold text-[#0F172A]">
+                                  Video Consultation
+                                </p>
+
+                              </div>
+
+                              {!item?.video?.enabled ? (
+                                <p className="mt-3 text-xs text-[#94A3B8]">
+                                  Not Available
+                                </p>
+                              ) : videoSlots.length === 0 ? (
+                                <p className="mt-3 text-xs text-[#94A3B8]">
+                                  No slots configured
+                                </p>
+                              ) : (
+                                <div className="mt-3 space-y-2">
+
+                                  {videoSlots.map(
+                                    (
+                                      slot,
+                                      slotIndex
+                                    ) => (
+                                      <div
+                                        key={slotIndex}
+                                        className="flex items-center gap-2 text-xs font-medium text-[#475569]"
+                                      >
+                                        <Clock3
+                                          size={14}
+                                          className="text-[#0F766E]"
+                                        />
+
+                                        <span>
+                                          {slot?.startTime ||
+                                            "—"}{" "}
+                                          -{" "}
+                                          {slot?.endTime ||
+                                            "—"}
+                                        </span>
+                                      </div>
+                                    )
+                                  )}
+
+                                </div>
+                              )}
+
+                            </div>
+
+                          </div>
+
+                        </div>
+                      );
+                    }
+                  )}
+
+                </div>
               )}
 
             </div>
-
-            <InfoItem
-              icon={Clock3}
-              label="Start Time"
-              value={doctor?.startTime}
-            />
-
-            <InfoItem
-              icon={Clock3}
-              label="End Time"
-              value={doctor?.endTime}
-            />
 
             <InfoItem
               icon={Clock3}
@@ -727,11 +877,21 @@ export default function DoctorViewPage() {
               }
             />
 
+            <InfoItem
+              icon={Clock3}
+              label="Status"
+              value={
+                isActive
+                  ? "Active"
+                  : "Inactive"
+              }
+            />
+
           </InfoSection>
 
-          {/* =====================================
+          {/* ==========================================
               ADDRESS
-          ===================================== */}
+          ========================================== */}
 
           <InfoSection
             icon={MapPin}
@@ -772,9 +932,9 @@ export default function DoctorViewPage() {
 
         </div>
 
-        {/* =====================================
-            FOOTER ACTION
-        ===================================== */}
+        {/* ==========================================
+            FOOTER
+        ========================================== */}
 
         <div className="mt-6 flex justify-end">
 
@@ -793,9 +953,9 @@ export default function DoctorViewPage() {
   );
 }
 
-/* =====================================
-   INFO SECTION
-===================================== */
+// ==========================================
+// INFO SECTION
+// ==========================================
 
 function InfoSection({
   icon: Icon,
@@ -829,9 +989,9 @@ function InfoSection({
   );
 }
 
-/* =====================================
-   INFO ITEM
-===================================== */
+// ==========================================
+// INFO ITEM
+// ==========================================
 
 function InfoItem({
   icon: Icon,
@@ -845,14 +1005,20 @@ function InfoItem({
     value !== undefined &&
     value !== ""
   ) {
-    if (typeof value === "object") {
+    if (Array.isArray(value)) {
+      displayValue = value.length
+        ? value.join(", ")
+        : "—";
+    } else if (
+      typeof value === "object"
+    ) {
       displayValue =
         value?.name ||
         value?.title ||
         value?.fullAddress ||
         "—";
     } else {
-      displayValue = value;
+      displayValue = String(value);
     }
   }
 
@@ -880,9 +1046,9 @@ function InfoItem({
   );
 }
 
-/* =====================================
-   QUICK INFO
-===================================== */
+// ==========================================
+// QUICK INFO
+// ==========================================
 
 function QuickInfo({
   label,
@@ -895,14 +1061,12 @@ function QuickInfo({
     value !== undefined &&
     value !== ""
   ) {
-    if (typeof value === "object") {
-      displayValue =
-        value?.name ||
-        value?.title ||
-        value?.fullAddress ||
-        "—";
+    if (Array.isArray(value)) {
+      displayValue = value.length
+        ? value.join(", ")
+        : "—";
     } else {
-      displayValue = value;
+      displayValue = String(value);
     }
   }
 
@@ -920,4 +1084,3 @@ function QuickInfo({
     </div>
   );
 }
-

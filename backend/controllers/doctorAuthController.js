@@ -916,13 +916,11 @@ const loginDoctor = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log("=================================");
-    console.log("DOCTOR LOGIN REQUEST");
-    console.log("Email:", email);
-    console.log("Password received:", Boolean(password));
-    console.log("=================================");
+   
 
-    // Required fields
+    // ==========================================
+    // REQUIRED FIELDS
+    // ==========================================
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -930,26 +928,36 @@ const loginDoctor = async (req, res) => {
       });
     }
 
-    // Normalize email
+    // ==========================================
+    // NORMALIZE EMAIL
+    // ==========================================
     const cleanEmail = String(email)
       .trim()
       .toLowerCase();
 
-    // Find doctor by email
-    const doctor = await Doctor.findOne({
-      email: cleanEmail,
-    });
+    // ==========================================
+    // FIND DOCTOR
+    // ==========================================
+  const doctor = await Doctor.findOne({
+  email: cleanEmail,
+}).select("+password");
 
     console.log("Doctor found:", Boolean(doctor));
+console.log("Doctor ID:", doctor?._id);
+console.log("Doctor email:", doctor?.email);
+console.log("Password exists:", Boolean(doctor?.password));
+console.log("Password value:", doctor?.password);
 
     if (!doctor) {
-      return res.status(404).json({
+      return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
 
-    // Check account status
+    // ==========================================
+    // CHECK ACCOUNT STATUS
+    // ==========================================
     if (!doctor.status) {
       return res.status(403).json({
         success: false,
@@ -957,7 +965,9 @@ const loginDoctor = async (req, res) => {
       });
     }
 
-    // Check password exists
+    // ==========================================
+    // CHECK PASSWORD EXISTS
+    // ==========================================
     if (
       !doctor.password ||
       doctor.password.trim() === ""
@@ -969,12 +979,13 @@ const loginDoctor = async (req, res) => {
       });
     }
 
-    // Compare password
-    const isPasswordMatch =
-      await bcrypt.compare(
-        String(password),
-        doctor.password
-      );
+    // ==========================================
+    // COMPARE PASSWORD
+    // ==========================================
+    const isPasswordMatch = await bcrypt.compare(
+      String(password),
+      doctor.password
+    );
 
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -983,7 +994,9 @@ const loginDoctor = async (req, res) => {
       });
     }
 
-    // JWT secret
+    // ==========================================
+    // CHECK JWT SECRET
+    // ==========================================
     if (!process.env.JWT_SECRET) {
       console.error("JWT_SECRET is missing");
 
@@ -993,7 +1006,9 @@ const loginDoctor = async (req, res) => {
       });
     }
 
-    // Create JWT
+    // ==========================================
+    // CREATE JWT
+    // ==========================================
     const token = jwt.sign(
       {
         id: doctor._id.toString(),
@@ -1006,10 +1021,29 @@ const loginDoctor = async (req, res) => {
       }
     );
 
+    // ==========================================
+    // SAVE TOKEN IN HTTP-ONLY COOKIE
+    // ==========================================
+    res.cookie("doctorToken", token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite:
+    process.env.NODE_ENV === "production"
+      ? "none"
+      : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: "/",
+});
+
+    console.log("Doctor token cookie created");
+
+    // ==========================================
+    // SUCCESS RESPONSE
+    // ==========================================
     return res.status(200).json({
       success: true,
       message: "Doctor login successful",
-      token,
+
       doctor: {
         id: doctor._id,
         firstName: doctor.firstName,
@@ -1021,10 +1055,7 @@ const loginDoctor = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "Doctor login error:",
-      error
-    );
+    console.error("Doctor login error:", error);
 
     return res.status(500).json({
       success: false,
@@ -1990,6 +2021,79 @@ const resetDoctorPassword = async (req, res) => {
     });
   }
 };
+
+
+
+// =====================================================
+// GET LOGGED-IN DOCTOR
+// =====================================================
+
+const getDoctorMe = async (req, res) => {
+  try {
+    // protect middleware already verified the token
+    // and attached doctor to req.user
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Doctor authentication required",
+      });
+    }
+
+    if (req.userRole !== "doctor") {
+      return res.status(403).json({
+        success: false,
+        message: "Doctor access required",
+      });
+    }
+
+    const doctor = await Doctor.findById(req.user._id)
+      .select("-password")
+      .populate("department", "name code");
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found",
+      });
+    }
+
+    if (!doctor.status) {
+      return res.status(403).json({
+        success: false,
+        message: "Doctor account is inactive",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Doctor profile fetched successfully",
+      doctor: {
+        id: doctor._id,
+        firstName: doctor.firstName,
+        lastName: doctor.lastName,
+        email: doctor.email,
+        username: doctor.username || "",
+        phone: doctor.phone || "",
+        profileImage: doctor.profileImage || "",
+        gender: doctor.gender || "",
+        specialization: doctor.specialization || "",
+        qualification: doctor.qualification || "",
+        experience: doctor.experience || "",
+        consultationFee: doctor.consultationFee || 0,
+        department: doctor.department || null,
+        status: doctor.status,
+      },
+    });
+  } catch (error) {
+    console.error("Get doctor me error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to get doctor profile",
+    });
+  }
+};
 // =====================================================
 // UPDATE ADMIN PROFILE
 // =====================================================
@@ -2124,6 +2228,7 @@ module.exports = {
   resendDoctorOtp,
   setDoctorCredentials,
   loginDoctor,
+  getDoctorMe,
 
   // Doctor Forgot Password
   forgotDoctorPassword,

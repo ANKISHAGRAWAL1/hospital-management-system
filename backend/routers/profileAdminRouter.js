@@ -27,7 +27,7 @@ const {
 // PROFILE IMAGE UPLOAD
 // ======================================================
 
-const upload = require("../middleware/uploadDoctor");
+const upload = require("../middleware/upload");
 
 // ======================================================
 // ADMIN PROFILE ROUTES

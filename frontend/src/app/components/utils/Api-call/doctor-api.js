@@ -7,10 +7,30 @@ const SERVER_URL = process.env.NEXT_PUBLIC_API_BASE_URL.replace(
 
 export const createDoctor = async (formData) => {
   try {
-    const response = await client.post("doctors", formData);
+    console.log("========== CREATE DOCTOR ==========");
+
+    for (const [key, value] of formData.entries()) {
+      console.log(
+        key,
+        value instanceof File
+          ? `FILE: ${value.name}`
+          : value
+      );
+    }
+
+    const response = await client.post(
+      "doctors",
+      formData
+    );
 
     return response.data;
+
   } catch (error) {
+    console.error(
+      "CREATE DOCTOR API ERROR:",
+      error
+    );
+
     throw (
       error.response?.data || {
         success: false,

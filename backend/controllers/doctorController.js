@@ -1,4 +1,5 @@
 const Doctor = require("../models/Doctor");
+const Departments = require("../models/Departments");
 
 const {
   sendBadrequest,
@@ -9,23 +10,70 @@ const {
   sendServerError,
 } = require("../utils/res");
 
-// =====================================================
-// CREATE DOCTOR
-// =====================================================
+// ==========================================
+// TIME VALIDATION
+// ==========================================
+const isValidTime = (time) => {
+  if (typeof time !== "string") return false;
 
+  // HH:mm format
+  const match = time.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+
+  return !!match;
+};
+
+// ==========================================
+// TIME COMPARISON
+// ==========================================
+const timeToMinutes = (time) => {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  return hours * 60 + minutes;
+};
+
+// ==========================================
+// CHECK SLOT OVERLAPPING
+// ==========================================
+const hasOverlappingSlots = (slots) => {
+  if (!Array.isArray(slots) || slots.length <= 1) {
+    return false;
+  }
+
+  const sortedSlots = [...slots].sort(
+    (a, b) =>
+      timeToMinutes(a.startTime) -
+      timeToMinutes(b.startTime)
+  );
+
+  for (let i = 0; i < sortedSlots.length - 1; i++) {
+    const current = sortedSlots[i];
+    const next = sortedSlots[i + 1];
+
+    if (
+      timeToMinutes(next.startTime) <
+      timeToMinutes(current.endTime)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// ==========================================
+// CREATE DOCTOR
+// ==========================================
 const createDoctor = async (req, res) => {
   try {
-    console.log("========================================");
-    console.log("CREATE DOCTOR REQUEST");
-    console.log("BODY:", req.body);
-    console.log("FILE:", req.file);
-    console.log("========================================");
+    // ======================================
+    // SAFETY CHECK
+    // ======================================
 
-    // -------------------------------------------------
-    // Safety check for multipart/form-data
-    // -------------------------------------------------
     if (!req.body) {
-      return sendBadrequest(res, "Doctor data is required");
+      return sendBadrequest(
+        res,
+        "Doctor data is required"
+      );
     }
 
     const {
@@ -41,21 +89,18 @@ const createDoctor = async (req, res) => {
       experience,
       consultationFee,
       licenseNumber,
-      availableDays,
-      startTime,
-      endTime,
+      availability,
       appointmentDuration,
       fullAddress,
       city,
       state,
       pincode,
-      username,
-      password,
     } = req.body;
 
-    // -------------------------------------------------
-    // Required fields
-    // -------------------------------------------------
+    // ======================================
+    // REQUIRED BASIC FIELDS
+    // ======================================
+
     if (
       !firstName ||
       !lastName ||
@@ -74,17 +119,145 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Normalize email
-    // -------------------------------------------------
-    const cleanEmail = email.trim().toLowerCase();
+    // ======================================
+    // PARSE SPECIALIZATION
+    // ======================================
 
-    // -------------------------------------------------
-    // Check duplicate email
-    // -------------------------------------------------
-    const existingEmail = await Doctor.findOne({
-      email: cleanEmail,
-    });
+    let parsedSpecialization = [];
+
+    if (Array.isArray(specialization)) {
+      parsedSpecialization = specialization;
+    } else if (
+      typeof specialization === "string"
+    ) {
+      try {
+        parsedSpecialization =
+          JSON.parse(specialization);
+      } catch (error) {
+        return sendBadrequest(
+          res,
+          "Invalid specialization format"
+        );
+      }
+    }
+
+    // ======================================
+    // VALIDATE SPECIALIZATION
+    // ======================================
+
+    if (
+      !Array.isArray(parsedSpecialization) ||
+      parsedSpecialization.length === 0
+    ) {
+      return sendBadrequest(
+        res,
+        "Please select at least one specialization"
+      );
+    }
+
+    // ======================================
+    // CLEAN SPECIALIZATION
+    // ======================================
+
+    parsedSpecialization =
+      parsedSpecialization
+        .map((item) =>
+          String(item).trim()
+        )
+        .filter(Boolean);
+
+    if (
+      parsedSpecialization.length === 0
+    ) {
+      return sendBadrequest(
+        res,
+        "Please select at least one specialization"
+      );
+    }
+
+    // ======================================
+    // PARSE QUALIFICATION
+    // ======================================
+
+    let parsedQualification = [];
+
+    if (Array.isArray(qualification)) {
+      parsedQualification = qualification;
+    } else if (
+      typeof qualification === "string"
+    ) {
+      try {
+        parsedQualification =
+          JSON.parse(qualification);
+      } catch (error) {
+        return sendBadrequest(
+          res,
+          "Invalid qualification format"
+        );
+      }
+    }
+
+    // ======================================
+    // VALIDATE QUALIFICATION
+    // ======================================
+
+    if (
+      !Array.isArray(parsedQualification) ||
+      parsedQualification.length === 0
+    ) {
+      return sendBadrequest(
+        res,
+        "Please select at least one qualification"
+      );
+    }
+
+    // ======================================
+    // CLEAN QUALIFICATION
+    // ======================================
+
+    parsedQualification =
+      parsedQualification
+        .map((item) =>
+          String(item).trim()
+        )
+        .filter(Boolean);
+
+    if (
+      parsedQualification.length === 0
+    ) {
+      return sendBadrequest(
+        res,
+        "Please select at least one qualification"
+      );
+    }
+
+    // ======================================
+    // NORMALIZE DATA
+    // ======================================
+
+    const cleanFirstName =
+      firstName.trim();
+
+    const cleanLastName =
+      lastName.trim();
+
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    const cleanPhone =
+      phone.trim();
+
+    const cleanLicenseNumber =
+      licenseNumber.trim();
+
+    // ======================================
+    // CHECK DUPLICATE EMAIL
+    // ======================================
+
+    const existingEmail =
+      await Doctor.findOne({
+        email: cleanEmail,
+      });
 
     if (existingEmail) {
       return sendConflict(
@@ -93,12 +266,15 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Check duplicate license number
-    // -------------------------------------------------
-    const existingLicense = await Doctor.findOne({
-      licenseNumber: licenseNumber.trim(),
-    });
+    // ======================================
+    // CHECK DUPLICATE LICENSE
+    // ======================================
+
+    const existingLicense =
+      await Doctor.findOne({
+        licenseNumber:
+          cleanLicenseNumber,
+      });
 
     if (existingLicense) {
       return sendConflict(
@@ -107,65 +283,84 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Check username if provided
-    // -------------------------------------------------
-    let cleanUsername = "";
+    // ======================================
+    // VALIDATE DEPARTMENT ID
+    // ======================================
 
-    if (username) {
-      cleanUsername = username.trim().toLowerCase();
-
-      const existingUsername = await Doctor.findOne({
-        username: cleanUsername,
-      });
-
-      if (existingUsername) {
-        return sendConflict(
-          res,
-          "This username is already in use"
-        );
-      }
-    }
-
-    // -------------------------------------------------
-    // Validate department ObjectId
-    // -------------------------------------------------
-    if (!/^[0-9a-fA-F]{24}$/.test(department)) {
+    if (
+      !/^[0-9a-fA-F]{24}$/.test(
+        department
+      )
+    ) {
       return sendBadrequest(
         res,
         "Invalid department ID"
       );
     }
 
-    // -------------------------------------------------
-    // Handle available days
-    // -------------------------------------------------
-    let parsedAvailableDays = [];
+    // ======================================
+    // CHECK DEPARTMENT EXISTS
+    // ======================================
 
-    if (availableDays) {
-      if (Array.isArray(availableDays)) {
-        parsedAvailableDays = availableDays;
-      } else if (typeof availableDays === "string") {
+    const existingDepartment =
+      await Departments.findById(
+        department
+      );
+
+    if (!existingDepartment) {
+      return sendBadrequest(
+        res,
+        "Selected department does not exist"
+      );
+    }
+
+    // ======================================
+    // PARSE AVAILABILITY
+    // ======================================
+
+    let parsedAvailability = [];
+
+    if (availability) {
+      if (
+        Array.isArray(availability)
+      ) {
+        parsedAvailability =
+          availability;
+      } else if (
+        typeof availability ===
+        "string"
+      ) {
         try {
-          // If frontend sends JSON array
-          parsedAvailableDays = JSON.parse(availableDays);
-
-          if (!Array.isArray(parsedAvailableDays)) {
-            parsedAvailableDays = [availableDays];
-          }
+          parsedAvailability =
+            JSON.parse(availability);
         } catch (error) {
-          // If frontend sends comma separated values
-          parsedAvailableDays = availableDays
-            .split(",")
-            .map((day) => day.trim())
-            .filter(Boolean);
+          return sendBadrequest(
+            res,
+            "Invalid availability format"
+          );
         }
       }
     }
 
-    // -------------------------------------------------
-    // Validate available days
-    // -------------------------------------------------
+    // ======================================
+    // VALIDATE AVAILABILITY ARRAY
+    // ======================================
+
+    if (
+      !Array.isArray(
+        parsedAvailability
+      )
+    ) {
+      return sendBadrequest(
+        res,
+        "Availability must be an array"
+      );
+    }
+
+    // ======================================
+    // VALID DAYS
+    // ======================================
+
     const validDays = [
       "Monday",
       "Tuesday",
@@ -176,20 +371,219 @@ const createDoctor = async (req, res) => {
       "Sunday",
     ];
 
-    const invalidDays = parsedAvailableDays.filter(
-      (day) => !validDays.includes(day)
-    );
+    const usedDays =
+      new Set();
 
-    if (invalidDays.length > 0) {
-      return sendBadrequest(
-        res,
-        `Invalid available days: ${invalidDays.join(", ")}`
-      );
+    // ======================================
+    // VALIDATE EACH DAY
+    // ======================================
+
+    for (
+      const dayAvailability of
+        parsedAvailability
+    ) {
+      const {
+        day,
+        hospital,
+        video,
+      } =
+        dayAvailability;
+
+      // ------------------------------------
+      // Validate day
+      // ------------------------------------
+
+      if (
+        !validDays.includes(day)
+      ) {
+        return sendBadrequest(
+          res,
+          `Invalid day: ${day}`
+        );
+      }
+
+      // ------------------------------------
+      // Prevent duplicate day
+      // ------------------------------------
+
+      if (
+        usedDays.has(day)
+      ) {
+        return sendBadrequest(
+          res,
+          `${day} availability is added more than once`
+        );
+      }
+
+      usedDays.add(day);
+
+      // ====================================
+      // HOSPITAL VALIDATION
+      // ====================================
+
+      if (hospital) {
+        if (
+          hospital.enabled === true &&
+          (
+            !Array.isArray(
+              hospital.slots
+            ) ||
+            hospital.slots.length === 0
+          )
+        ) {
+          return sendBadrequest(
+            res,
+            `${day}: Hospital timing is required`
+          );
+        }
+
+        if (
+          Array.isArray(
+            hospital.slots
+          )
+        ) {
+          for (
+            const slot of
+              hospital.slots
+          ) {
+            if (
+              !slot.startTime ||
+              !slot.endTime
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Hospital start time and end time are required`
+              );
+            }
+
+            if (
+              !isValidTime(
+                slot.startTime
+              ) ||
+              !isValidTime(
+                slot.endTime
+              )
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Invalid hospital timing format. Use HH:mm`
+              );
+            }
+
+            if (
+              timeToMinutes(
+                slot.startTime
+              ) >=
+              timeToMinutes(
+                slot.endTime
+              )
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Hospital end time must be greater than start time`
+              );
+            }
+          }
+
+          if (
+            hasOverlappingSlots(
+              hospital.slots
+            )
+          ) {
+            return sendBadrequest(
+              res,
+              `${day}: Hospital timings cannot overlap`
+            );
+          }
+        }
+      }
+
+      // ====================================
+      // VIDEO VALIDATION
+      // ====================================
+
+      if (video) {
+        if (
+          video.enabled === true &&
+          (
+            !Array.isArray(
+              video.slots
+            ) ||
+            video.slots.length === 0
+          )
+        ) {
+          return sendBadrequest(
+            res,
+            `${day}: Video consultation timing is required`
+          );
+        }
+
+        if (
+          Array.isArray(
+            video.slots
+          )
+        ) {
+          for (
+            const slot of
+              video.slots
+          ) {
+            if (
+              !slot.startTime ||
+              !slot.endTime
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Video start time and end time are required`
+              );
+            }
+
+            if (
+              !isValidTime(
+                slot.startTime
+              ) ||
+              !isValidTime(
+                slot.endTime
+              )
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Invalid video timing format. Use HH:mm`
+              );
+            }
+
+            if (
+              timeToMinutes(
+                slot.startTime
+              ) >=
+              timeToMinutes(
+                slot.endTime
+              )
+            ) {
+              return sendBadrequest(
+                res,
+                `${day}: Video end time must be greater than start time`
+              );
+            }
+          }
+
+          if (
+            hasOverlappingSlots(
+              video.slots
+            )
+          ) {
+            return sendBadrequest(
+              res,
+              `${day}: Video timings cannot overlap`
+            );
+          }
+        }
+      }
     }
 
-    // -------------------------------------------------
-    // Convert numeric values
-    // -------------------------------------------------
+    // ======================================
+    // NUMERIC VALUES
+    // ======================================
+
     const parsedExperience =
       experience !== undefined &&
       experience !== ""
@@ -197,22 +591,31 @@ const createDoctor = async (req, res) => {
         : 0;
 
     const parsedConsultationFee =
-      consultationFee !== undefined &&
+      consultationFee !==
+        undefined &&
       consultationFee !== ""
-        ? Number(consultationFee)
+        ? Number(
+            consultationFee
+          )
         : 0;
 
     const parsedAppointmentDuration =
-      appointmentDuration !== undefined &&
+      appointmentDuration !==
+        undefined &&
       appointmentDuration !== ""
-        ? Number(appointmentDuration)
+        ? Number(
+            appointmentDuration
+          )
         : 30;
 
-    // -------------------------------------------------
-    // Validate numbers
-    // -------------------------------------------------
+    // ======================================
+    // NUMBER VALIDATION
+    // ======================================
+
     if (
-      Number.isNaN(parsedExperience) ||
+      Number.isNaN(
+        parsedExperience
+      ) ||
       parsedExperience < 0
     ) {
       return sendBadrequest(
@@ -222,7 +625,9 @@ const createDoctor = async (req, res) => {
     }
 
     if (
-      Number.isNaN(parsedConsultationFee) ||
+      Number.isNaN(
+        parsedConsultationFee
+      ) ||
       parsedConsultationFee < 0
     ) {
       return sendBadrequest(
@@ -242,154 +647,303 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Handle profile image
-    // -------------------------------------------------
+    // ======================================
+    // DATE VALIDATION
+    // ======================================
+
+    const parsedDateOfBirth =
+      new Date(dateOfBirth);
+
+    if (
+      Number.isNaN(
+        parsedDateOfBirth.getTime()
+      )
+    ) {
+      return sendBadrequest(
+        res,
+        "Invalid date of birth"
+      );
+    }
+
+    // ======================================
+    // PROFILE IMAGE
+    // ======================================
+
     let profileImage = "";
 
     if (req.file) {
-      profileImage = `/uploads/doctors/${req.file.filename}`;
+      profileImage =
+        `/uploads/doctors/${req.file.filename}`;
     }
 
-    // -------------------------------------------------
-    // Create doctor
-    // -------------------------------------------------
-    const doctor = await Doctor.create({
-      profileImage,
+    // ======================================
+    // CREATE DOCTOR
+    // ======================================
 
-      firstName: firstName.trim(),
+    const doctor =
+      await Doctor.create({
+        profileImage,
 
-      lastName: lastName.trim(),
+        firstName:
+          cleanFirstName,
 
-      email: cleanEmail,
+        lastName:
+          cleanLastName,
 
-      phone: phone.trim(),
+        email:
+          cleanEmail,
 
-      gender,
+        phone:
+          cleanPhone,
 
-      dateOfBirth: new Date(dateOfBirth),
+        gender,
 
-      specialization: specialization.trim(),
+        dateOfBirth:
+          parsedDateOfBirth,
 
-      department,
+        // IMPORTANT:
+        // MULTI SELECT ARRAY
+        specialization:
+          parsedSpecialization,
 
-      qualification: qualification.trim(),
+        department,
 
-      experience: parsedExperience,
+        // IMPORTANT:
+        // MULTI SELECT ARRAY
+        qualification:
+          parsedQualification,
 
-      consultationFee: parsedConsultationFee,
+        experience:
+          parsedExperience,
 
-      licenseNumber: licenseNumber.trim(),
+        consultationFee:
+          parsedConsultationFee,
 
-      availableDays: parsedAvailableDays,
+        licenseNumber:
+          cleanLicenseNumber,
 
-      startTime: startTime
-        ? startTime.trim()
-        : "",
+        availability:
+          parsedAvailability,
 
-      endTime: endTime
-        ? endTime.trim()
-        : "",
+        appointmentDuration:
+          parsedAppointmentDuration,
 
-      appointmentDuration:
-        parsedAppointmentDuration,
+        status: true,
 
-      // Admin-created doctors are active by default
-      status: true,
+        address: {
+          fullAddress:
+            fullAddress
+              ? fullAddress.trim()
+              : "",
 
-      address: {
-        fullAddress: fullAddress
-          ? fullAddress.trim()
-          : "",
+          city:
+            city
+              ? city.trim()
+              : "",
 
-        city: city
-          ? city.trim()
-          : "",
+          state:
+            state
+              ? state.trim()
+              : "",
 
-        state: state
-          ? state.trim()
-          : "",
+          pincode:
+            pincode
+              ? pincode.trim()
+              : "",
+        },
+      });
 
-        pincode: pincode
-          ? pincode.trim()
-          : "",
-      },
+    // ======================================
+    // POPULATE DEPARTMENT
+    // ======================================
 
-      // Optional because doctor can create password later
-      username: cleanUsername || undefined,
+   // ======================================
+// FETCH CREATED DOCTOR
+// ======================================
 
-      password: password || "",
-    });
+const createdDoctor = await Doctor.findById(doctor._id)
+  .populate("department", "name code");
 
-    // -------------------------------------------------
-    // Populate department
-    // -------------------------------------------------
-    const createdDoctor = await Doctor.findById(
-      doctor._id
-    ).populate(
-      "department",
-      "name code"
+// Doctor create hone ke baad dobara fetch hua ya nahi
+if (!createdDoctor) {
+  return sendServerError(
+    res,
+    "Doctor was created but could not be retrieved"
+  );
+}
+
+// ======================================
+// SUCCESS
+// ======================================
+
+return sendcreated(
+  res,
+  "Doctor created successfully",
+  createdDoctor
+);
+
+} catch (error) {
+
+  console.error("========================================");
+  console.error("CREATE DOCTOR ERROR:");
+  console.error(error);
+  console.error("========================================");
+
+  // ======================================
+  // DUPLICATE KEY ERROR
+  // ======================================
+
+  if (error.code === 11000) {
+
+    const duplicateFields = Object.keys(
+      error.keyPattern || error.keyValue || {}
     );
 
-    // -------------------------------------------------
-    // Success
-    // -------------------------------------------------
-    return sendcreated(
+    if (duplicateFields.includes("email")) {
+      return sendConflict(
+        res,
+        "A doctor with this email already exists"
+      );
+    }
+
+    if (duplicateFields.includes("licenseNumber")) {
+      return sendConflict(
+        res,
+        "A doctor with this license number already exists"
+      );
+    }
+
+    return sendConflict(
       res,
-      "Doctor created successfully",
-      createdDoctor
+      "Doctor with the provided information already exists"
     );
+  }
+
+  // ======================================
+  // MONGOOSE VALIDATION ERROR
+  // ======================================
+
+  if (error.name === "ValidationError") {
+
+    const messages = Object.values(error.errors)
+      .map((err) => err.message)
+      .filter(Boolean);
+
+    return sendBadrequest(
+      res,
+      messages.length > 0
+        ? messages.join(", ")
+        : "Invalid doctor data"
+    );
+  }
+
+  // ======================================
+  // INVALID OBJECT ID
+  // ======================================
+
+  if (error.name === "CastError") {
+
+    return sendBadrequest(
+      res,
+      `Invalid ${error.path}`
+    );
+  }
+
+  // ======================================
+  // JSON PARSE ERROR
+  // ======================================
+
+  if (error instanceof SyntaxError) {
+
+    return sendBadrequest(
+      res,
+      "Invalid JSON data"
+    );
+  }
+
+  // ======================================
+  // SERVER ERROR
+  // ======================================
+
+  return sendServerError(
+    res,
+    error.message || "Failed to create doctor"
+  );
+}
+}
+// =====================================================
+// GET ALL DOCTORS
+// =====================================================
+
+const getAllDoctors = async (req, res) => {
+  try {
+    // ==========================================
+    // 1. QUERY VALIDATION
+    // ==========================================
+
+    if (req.query && typeof req.query !== "object") {
+      return sendBadrequest(
+        res,
+        "Invalid request query"
+      );
+    }
+
+    // ==========================================
+    // 2. FETCH DOCTORS
+    // ==========================================
+
+    const doctors = await Doctor.find()
+      .populate("department", "name code")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // ==========================================
+    // 3. EMPTY RESULT VALIDATION
+    // ==========================================
+
+    if (!Array.isArray(doctors)) {
+      return sendServerError(
+        res,
+        "Invalid doctors data received from database"
+      );
+    }
+
+    // ==========================================
+    // 4. SUCCESS RESPONSE
+    // ==========================================
+
+    return sendsuccess(
+      res,
+      "Doctors fetched successfully",
+      doctors
+    );
+
   } catch (error) {
     console.error(
       "========================================"
     );
-    console.error("CREATE DOCTOR ERROR:");
-    console.error(error);
+    console.error(
+      "GET ALL DOCTORS ERROR:",
+      error
+    );
     console.error(
       "========================================"
     );
 
-    // -------------------------------------------------
-    // MongoDB duplicate key error
-    // -------------------------------------------------
-    if (error.code === 11000) {
-      const duplicateField = Object.keys(
-        error.keyPattern || {}
-      )[0];
+    // ==========================================
+    // MONGOOSE ERRORS
+    // ==========================================
 
-      let message =
-        "Doctor already exists";
-
-      if (duplicateField === "email") {
-        message =
-          "A doctor with this email already exists";
-      }
-
-      if (duplicateField === "licenseNumber") {
-        message =
-          "A doctor with this license number already exists";
-      }
-
-      if (duplicateField === "username") {
-        message =
-          "This username is already in use";
-      }
-
-      return sendConflict(
+    if (error.name === "CastError") {
+      return sendBadrequest(
         res,
-        message
+        `Invalid ${error.path}`
       );
     }
 
-    // -------------------------------------------------
-    // Mongoose validation error
-    // -------------------------------------------------
     if (error.name === "ValidationError") {
-      const messages = Object.values(
-        error.errors
-      ).map(
-        (err) => err.message
-      );
+      const messages = Object.values(error.errors)
+        .map((err) => err.message);
 
       return sendBadrequest(
         res,
@@ -397,62 +951,13 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Invalid ObjectId
-    // -------------------------------------------------
-    if (
-      error.name ===
-      "CastError"
-    ) {
-      return sendBadrequest(
-        res,
-        `Invalid ${error.path}`
-      );
-    }
-
-    // -------------------------------------------------
-    // Server error
-    // -------------------------------------------------
-    return sendServerError(
-      res,
-      error.message
-    );
-  }
-};
-
-// =====================================================
-// GET ALL DOCTORS
-// =====================================================
-
-const getAllDoctors = async (
-  req,
-  res
-) => {
-  try {
-    const doctors =
-      await Doctor.find()
-        .populate(
-          "department",
-          "name code"
-        )
-        .sort({
-          createdAt: -1,
-        });
-
-    return sendsuccess(
-      res,
-      "Doctors fetched successfully",
-      doctors
-    );
-  } catch (error) {
-    console.error(
-      "Get Doctors Error:",
-      error
-    );
+    // ==========================================
+    // SERVER ERROR
+    // ==========================================
 
     return sendServerError(
       res,
-      error.message
+      error.message || "Failed to fetch doctors"
     );
   }
 };

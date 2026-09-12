@@ -42,20 +42,24 @@ export default function DoctorLoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
 
+    // ========================================
+    // CLEAN EMAIL
+    // ========================================
+
     const cleanEmail = email.trim().toLowerCase();
 
-    // ------------------------------------------
-    // Validate email
-    // ------------------------------------------
+    // ========================================
+    // VALIDATE EMAIL
+    // ========================================
 
     if (!cleanEmail) {
       toast.error("Please enter your email");
       return;
     }
 
-    // ------------------------------------------
-    // Validate password
-    // ------------------------------------------
+    // ========================================
+    // VALIDATE PASSWORD
+    // ========================================
 
     if (!password) {
       toast.error("Please enter your password");
@@ -65,9 +69,9 @@ export default function DoctorLoginPage() {
     try {
       setLoading(true);
 
-      // ----------------------------------------
-      // Doctor Login API
-      // ----------------------------------------
+      // ======================================
+      // DOCTOR LOGIN API
+      // ======================================
 
       const result = await doctorLogin({
         email: cleanEmail,
@@ -76,9 +80,9 @@ export default function DoctorLoginPage() {
 
       console.log("DOCTOR LOGIN RESULT:", result);
 
-      // ----------------------------------------
-      // Login failed
-      // ----------------------------------------
+      // ======================================
+      // LOGIN FAILED
+      // ======================================
 
       if (!result?.success) {
         toast.error(
@@ -89,46 +93,50 @@ export default function DoctorLoginPage() {
         return;
       }
 
-      // ----------------------------------------
-      // SAVE AUTH TOKEN
-      // ----------------------------------------
+      // ======================================
+      // LOGIN SUCCESSFUL
+      // ======================================
 
-      if (result?.token) {
-        localStorage.setItem(
-          "doctorToken",
-          result.token
-        );
-      }
+      /*
+        IMPORTANT:
 
-      // ----------------------------------------
-      // SAVE DOCTOR DATA
-      // ----------------------------------------
+        We do NOT save the JWT in localStorage.
 
-      if (result?.doctor) {
-        localStorage.setItem(
-          "doctor",
-          JSON.stringify(result.doctor)
-        );
-      }
+        Backend already creates:
 
-      // ----------------------------------------
-      // Success
-      // ----------------------------------------
+        HTTP-only cookie:
+        doctorToken
 
-      toast.success(
-        "Welcome back, Doctor"
-      );
+        Browser will automatically send
+        this cookie with API requests because
+        axios uses withCredentials: true.
+      */
 
-      // ----------------------------------------
-      // Redirect
-      // ----------------------------------------
+      toast.success("Welcome back, Doctor");
 
-      router.replace(
-        "/doctor/dashboard"
-      );
+      // ======================================
+      // REDIRECT TO DOCTOR DASHBOARD
+      // ======================================
+
+      router.replace("/doctor/dashboard");
+
     } catch (error) {
       console.error(
-        "DOCTOR LOGIN ERROR:",
+        "========== DOCTOR LOGIN ERROR =========="
+      );
+
+      console.error(
+        "Status:",
+        error?.response?.status
+      );
+
+      console.error(
+        "Backend Response:",
+        error?.response?.data
+      );
+
+      console.error(
+        "Error:",
         error
       );
 
@@ -149,9 +157,7 @@ export default function DoctorLoginPage() {
   const handleCreatePassword = () => {
     if (loading) return;
 
-    router.push(
-      "/doctor/verify-email"
-    );
+    router.push("/doctor/verify-email");
   };
 
   // ==========================================
@@ -161,9 +167,7 @@ export default function DoctorLoginPage() {
   const handleForgotPassword = () => {
     if (loading) return;
 
-    router.push(
-      "/doctor/forgot-password"
-    );
+    router.push("/doctor/forgot-password");
   };
 
   // ==========================================
@@ -186,7 +190,7 @@ export default function DoctorLoginPage() {
                 LEFT BRAND PANEL
             =================================== */}
 
-            <div className="relative hidden min-h-[680px] overflow-hidden bg-blue-700 p-10 text-white md:flex md:flex-col md:justify-between">
+            <div className="relative hidden min-h-[680px]  overflow-hidden bg-blue-700 p-10 text-white md:flex md:flex-col md:justify-between">
 
               {/* DECORATIVE BACKGROUND */}
 
@@ -336,9 +340,7 @@ export default function DoctorLoginPage() {
                       type="email"
                       value={email}
                       onChange={(e) =>
-                        setEmail(
-                          e.target.value
-                        )
+                        setEmail(e.target.value)
                       }
                       placeholder="Enter your registered email"
                       autoComplete="email"
@@ -367,9 +369,7 @@ export default function DoctorLoginPage() {
 
                     <button
                       type="button"
-                      onClick={
-                        handleForgotPassword
-                      }
+                      onClick={handleForgotPassword}
                       disabled={loading}
                       className="text-xs font-semibold text-blue-600 transition hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -394,9 +394,7 @@ export default function DoctorLoginPage() {
                       }
                       value={password}
                       onChange={(e) =>
-                        setPassword(
-                          e.target.value
-                        )
+                        setPassword(e.target.value)
                       }
                       placeholder="Enter your password"
                       autoComplete="current-password"
@@ -407,9 +405,7 @@ export default function DoctorLoginPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setShowPassword(
-                          !showPassword
-                        )
+                        setShowPassword(!showPassword)
                       }
                       disabled={loading}
                       aria-label={
@@ -453,9 +449,7 @@ export default function DoctorLoginPage() {
                     <>
                       Sign in to Doctor Portal
 
-                      <ArrowRight
-                        size={18}
-                      />
+                      <ArrowRight size={18} />
                     </>
                   )}
 
@@ -494,17 +488,13 @@ export default function DoctorLoginPage() {
 
                     <button
                       type="button"
-                      onClick={
-                        handleCreatePassword
-                      }
+                      onClick={handleCreatePassword}
                       disabled={loading}
                       className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 transition hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Create doctor password
 
-                      <ArrowRight
-                        size={15}
-                      />
+                      <ArrowRight size={15} />
                     </button>
 
                   </div>

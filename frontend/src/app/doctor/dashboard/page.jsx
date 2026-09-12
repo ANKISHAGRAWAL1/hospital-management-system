@@ -1,675 +1,437 @@
+ 
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
-  CalendarDays,
-  Clock,
   Users,
-  CheckCircle2,
+  CalendarDays,
+  Clock3,
+  CircleCheck,
+  Stethoscope,
+  RefreshCw,
   AlertCircle,
-  UserRound,
-  ArrowUpRight,
-  MoreHorizontal,
-  Activity,
 } from "lucide-react";
 
-export default function DoctorDashboard() {
+import { toast } from "react-toastify";
+
+import { client } from "@/app/components/healper";
+
+export default function DoctorDashboardPage() {
+  // ==========================================
+  // DASHBOARD STATE
+  // ==========================================
+
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ==========================================
+  // FETCH DASHBOARD
+  // ==========================================
+
+  const fetchDashboard = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const response = await client.get("/doctor/dashboard");
+
+      console.log("DOCTOR DASHBOARD RESPONSE:", response.data);
+
+      if (!response?.data?.success) {
+        throw new Error(
+          response?.data?.message ||
+            "Failed to fetch dashboard"
+        );
+      }
+
+      setDashboard(response.data.data);
+    } catch (error) {
+      console.error(
+        "DOCTOR DASHBOARD ERROR:",
+        error
+      );
+
+      console.error(
+        "STATUS:",
+        error?.response?.status
+      );
+
+      console.error(
+        "RESPONSE:",
+        error?.response?.data
+      );
+
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to load dashboard"
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // ==========================================
+  // LOAD DASHBOARD
+  // ==========================================
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  // ==========================================
+  // LOADING SCREEN
+  // ==========================================
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw
+            size={30}
+            className="animate-spin text-blue-600"
+          />
+
+          <p className="text-sm font-medium text-slate-500">
+            Loading dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // DASHBOARD ERROR
+  // ==========================================
+
+  if (!dashboard) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
+            <AlertCircle
+              size={28}
+              className="text-red-500"
+            />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-slate-900">
+            Unable to load dashboard
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Something went wrong while fetching
+            your dashboard data.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => fetchDashboard()}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <RefreshCw size={16} />
+            Try again
+          </button>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // DASHBOARD CARDS
+  // ==========================================
+
   const stats = [
     {
-      title: "Today's Appointments",
-      value: "12",
-      sub: "+2 from yesterday",
-      icon: CalendarDays,
+      title: "Total Patients",
+      value: dashboard.totalPatients ?? 0,
+      icon: Users,
+      description: "Patients under your care",
     },
     {
-      title: "Patients Seen",
-      value: "07",
-      sub: "58% of today's schedule",
-      icon: Users,
+      title: "Today's Appointments",
+      value: dashboard.todayAppointments ?? 0,
+      icon: CalendarDays,
+      description: "Appointments scheduled today",
+    },
+    {
+      title: "Pending Appointments",
+      value: dashboard.pendingAppointments ?? 0,
+      icon: Clock3,
+      description: "Appointments waiting",
     },
     {
       title: "Completed",
-      value: "07",
-      sub: "5 remaining",
-      icon: CheckCircle2,
-    },
-    {
-      title: "Avg. Consultation",
-      value: "24 min",
-      sub: "6 min below target",
-      icon: Clock,
+      value: dashboard.completedAppointments ?? 0,
+      icon: CircleCheck,
+      description: "Completed consultations",
     },
   ];
 
-  const appointments = [
-    {
-      id: 1,
-      time: "10:00 AM",
-      patient: "Rahul Sharma",
-      age: "42 yrs",
-      type: "New Visit",
-      status: "Completed",
-    },
-    {
-      id: 2,
-      time: "10:30 AM",
-      patient: "Amit Kumar",
-      age: "35 yrs",
-      type: "Follow-up",
-      status: "Completed",
-    },
-    {
-      id: 3,
-      time: "11:00 AM",
-      patient: "Priya Gupta",
-      age: "29 yrs",
-      type: "New Visit",
-      status: "In Progress",
-    },
-    {
-      id: 4,
-      time: "11:30 AM",
-      patient: "Mohit Singh",
-      age: "51 yrs",
-      type: "Follow-up",
-      status: "Waiting",
-    },
-    {
-      id: 5,
-      time: "12:00 PM",
-      patient: "Neha Sharma",
-      age: "38 yrs",
-      type: "Follow-up",
-      status: "Upcoming",
-    },
-  ];
+  // ==========================================
+  // UI
+  // ==========================================
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] text-gray-900 p-6 lg:p-8">
+    <div className="space-y-6">
 
-      {/* ========================================= */}
-      {/* PAGE HEADER */}
-      {/* ========================================= */}
+      {/* ======================================
+          HEADER
+      ======================================= */}
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
         <div>
-          <p className="text-sm text-gray-500 mb-1">
-            Monday, August 24, 2026
-          </p>
+          <div className="flex items-center gap-2">
+            <Stethoscope
+              size={22}
+              className="text-blue-600"
+            />
 
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Good Morning, Dr. Raj Sharma
-          </h1>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Doctor Dashboard
+            </h1>
+          </div>
 
-          <p className="text-sm text-gray-500 mt-1">
-            Here's what's happening with your practice today.
+          <p className="mt-1 text-sm text-slate-500">
+            Overview of your patients and appointments.
           </p>
         </div>
 
-        {/* Clinic Status */}
-
-        <div
-          className="
-            inline-flex
-            items-center
-            gap-2
-            px-4
-            py-2.5
-            bg-white
-            border
-            border-gray-200
-            rounded-xl
-            shadow-sm
-            w-fit
-          "
+        <button
+          type="button"
+          onClick={() => fetchDashboard(true)}
+          disabled={refreshing}
+          className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Activity
-            size={17}
-            className="text-blue-600"
+          <RefreshCw
+            size={16}
+            className={
+              refreshing
+                ? "animate-spin"
+                : ""
+            }
           />
 
-          <span className="text-sm text-gray-600">
-            Clinic Status
-          </span>
+          {refreshing
+            ? "Refreshing..."
+            : "Refresh"}
+        </button>
 
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-
-          <span className="text-sm font-medium text-emerald-600">
-            Active
-          </span>
-        </div>
       </div>
 
-      {/* ========================================= */}
-      {/* KPI CARDS */}
-      {/* ========================================= */}
+      {/* ======================================
+          STAT CARDS
+      ======================================= */}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-7">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
-        {stats.map((item, index) => {
-          const Icon = item.icon;
+        {stats.map((stat) => {
+          const Icon = stat.icon;
 
           return (
             <div
-              key={index}
-              className="
-                bg-white
-                border
-                border-gray-200
-                rounded-2xl
-                p-5
-                shadow-sm
-                hover:shadow-md
-                transition
-              "
+              key={stat.title}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
+
               <div className="flex items-start justify-between">
 
                 <div>
-                  <p className="text-sm text-gray-500">
-                    {item.title}
+                  <p className="text-sm font-medium text-slate-500">
+                    {stat.title}
                   </p>
 
-                  <h2 className="text-3xl font-semibold text-gray-900 mt-3">
-                    {item.value}
-                  </h2>
-
-                  <p className="text-xs text-gray-500 mt-2">
-                    {item.sub}
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {stat.value}
                   </p>
                 </div>
 
-                <div
-                  className="
-                    w-10
-                    h-10
-                    rounded-xl
-                    bg-blue-50
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50">
                   <Icon
-                    size={19}
+                    size={21}
                     className="text-blue-600"
                   />
                 </div>
 
               </div>
+
+              <p className="mt-4 text-xs text-slate-400">
+                {stat.description}
+              </p>
+
             </div>
           );
         })}
 
       </div>
 
-      {/* ========================================= */}
-      {/* MAIN DASHBOARD */}
-      {/* ========================================= */}
+      {/* ======================================
+          TODAY'S OVERVIEW
+      ======================================= */}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
-        {/* ===================================== */}
-        {/* APPOINTMENT QUEUE */}
-        {/* ===================================== */}
+        {/* ====================================
+            APPOINTMENT SUMMARY
+        ===================================== */}
 
-        <div
-          className="
-            xl:col-span-2
-            bg-white
-            border
-            border-gray-200
-            rounded-2xl
-            overflow-hidden
-            shadow-sm
-          "
-        >
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
 
-          {/* Header */}
-
-          <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center justify-between">
 
             <div>
-              <h2 className="font-semibold text-gray-900">
-                Today's Patient Queue
+              <h2 className="text-lg font-bold text-slate-900">
+                Today's Overview
               </h2>
 
-              <p className="text-xs text-gray-500 mt-1">
-                Real-time appointment status
+              <p className="mt-1 text-sm text-slate-500">
+                Quick summary of your appointments.
               </p>
             </div>
 
-            <button
-              type="button"
-              className="
-                p-2
-                rounded-lg
-                text-gray-500
-                hover:bg-gray-100
-                hover:text-gray-700
-                transition
-              "
-            >
-              <MoreHorizontal size={19} />
-            </button>
-
-          </div>
-
-          {/* Appointment List */}
-
-          <div className="divide-y divide-gray-100">
-
-            {appointments.map((appointment) => (
-
-              <div
-                key={appointment.id}
-                className="
-                  px-5
-                  py-4
-                  flex
-                  items-center
-                  gap-4
-                  hover:bg-gray-50
-                  transition
-                "
-              >
-
-                {/* Time */}
-
-                <div className="w-20 shrink-0">
-                  <p className="text-sm font-medium text-gray-800">
-                    {appointment.time}
-                  </p>
-                </div>
-
-                {/* Patient */}
-
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-
-                  <div
-                    className="
-                      w-10
-                      h-10
-                      shrink-0
-                      rounded-full
-                      bg-blue-50
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <UserRound
-                      size={18}
-                      className="text-blue-600"
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {appointment.patient}
-                    </p>
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      {appointment.age} • {appointment.type}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* Status */}
-
-                <span
-                  className={`
-                    text-xs
-                    px-3
-                    py-1.5
-                    rounded-full
-                    shrink-0
-                    font-medium
-
-                    ${
-                      appointment.status === "Completed"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : appointment.status === "In Progress"
-                        ? "bg-blue-50 text-blue-700"
-                        : appointment.status === "Waiting"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-gray-100 text-gray-600"
-                    }
-                  `}
-                >
-                  {appointment.status}
-                </span>
-
-              </div>
-
-            ))}
-
-          </div>
-        </div>
-
-        {/* ===================================== */}
-        {/* CURRENT PATIENT */}
-        {/* ===================================== */}
-
-        <div
-          className="
-            bg-white
-            border
-            border-gray-200
-            rounded-2xl
-            overflow-hidden
-            shadow-sm
-          "
-        >
-
-          {/* Header */}
-
-          <div className="p-5 border-b border-gray-100">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <h2 className="font-semibold text-gray-900">
-                  Current Patient
-                </h2>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Consultation in progress
-                </p>
-
-              </div>
-
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+              <CalendarDays
+                size={19}
+                className="text-blue-600"
+              />
             </div>
 
           </div>
 
-          {/* Patient */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 
-          <div className="p-6">
-
-            <div className="flex items-center gap-4">
-
-              <div
-                className="
-                  w-14
-                  h-14
-                  rounded-full
-                  bg-blue-50
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <UserRound
-                  size={25}
-                  className="text-blue-600"
-                />
-              </div>
-
-              <div>
-
-                <h3 className="font-medium text-gray-900">
-                  Priya Gupta
-                </h3>
-
-                <p className="text-sm text-gray-500">
-                  29 yrs • Female
-                </p>
-
-                <p className="text-xs text-gray-400 mt-1">
-                  Patient ID: PT-1024
-                </p>
-
-              </div>
-
-            </div>
-
-            {/* Consultation Info */}
-
-            <div className="mt-6 space-y-4">
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Appointment
-                </p>
-
-                <p className="text-sm text-gray-800 mt-1">
-                  11:00 AM • New Visit
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Reason for Visit
-                </p>
-
-                <p className="text-sm text-gray-800 mt-1">
-                  Chest discomfort and fatigue
-                </p>
-              </div>
-
-            </div>
-
-            {/* Button */}
-
-            <button
-              type="button"
-              className="
-                w-full
-                mt-6
-                flex
-                items-center
-                justify-center
-                gap-2
-                bg-blue-600
-                hover:bg-blue-700
-                text-white
-                rounded-xl
-                py-3
-                text-sm
-                font-medium
-                transition
-                shadow-sm
-              "
-            >
-              Continue Consultation
-
-              <ArrowUpRight size={16} />
-            </button>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* ========================================= */}
-      {/* BOTTOM SECTION */}
-      {/* ========================================= */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-
-        {/* ===================================== */}
-        {/* TODAY'S PROGRESS */}
-        {/* ===================================== */}
-
-        <div
-          className="
-            bg-white
-            border
-            border-gray-200
-            rounded-2xl
-            p-5
-            shadow-sm
-          "
-        >
-
-          <div className="flex items-center justify-between mb-5">
-
-            <div>
-
-              <h2 className="font-semibold text-gray-900">
-                Today's Progress
-              </h2>
-
-              <p className="text-xs text-gray-500 mt-1">
-                Appointment completion
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium text-slate-500">
+                Today's Appointments
               </p>
 
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {dashboard.todayAppointments ?? 0}
+              </p>
             </div>
 
-            <span className="text-sm font-medium text-gray-700">
-              7 / 12
-            </span>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium text-slate-500">
+                Pending
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {dashboard.pendingAppointments ?? 0}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-medium text-slate-500">
+                Completed
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {dashboard.completedAppointments ?? 0}
+              </p>
+            </div>
 
           </div>
 
-          {/* Progress */}
+        </div>
 
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        {/* ====================================
+            QUICK STATUS
+        ===================================== */}
 
-            <div
-              className="
-                h-full
-                bg-blue-600
-                rounded-full
-              "
-              style={{ width: "58%" }}
-            />
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
+          <h2 className="text-lg font-bold text-slate-900">
+            Practice Summary
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Your current patient overview.
+          </p>
+
+          <div className="mt-6 flex items-center gap-4">
+
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+              <Users
+                size={25}
+                className="text-blue-600"
+              />
+            </div>
+
+            <div>
+              <p className="text-2xl font-bold text-slate-900">
+                {dashboard.totalPatients ?? 0}
+              </p>
+
+              <p className="text-sm text-slate-500">
+                Total patients
+              </p>
+            </div>
 
           </div>
 
-          <div className="flex justify-between mt-3 text-xs text-gray-500">
+          <div className="mt-6 border-t border-slate-100 pt-5">
 
-            <span>
-              58% Completed
-            </span>
+            <div className="flex items-center justify-between text-sm">
 
-            <span>
-              5 Remaining
-            </span>
+              <span className="text-slate-500">
+                Completed consultations
+              </span>
+
+              <span className="font-semibold text-slate-900">
+                {dashboard.completedAppointments ?? 0}
+              </span>
+
+            </div>
+
+            <div className="mt-4 flex items-center justify-between text-sm">
+
+              <span className="text-slate-500">
+                Pending appointments
+              </span>
+
+              <span className="font-semibold text-slate-900">
+                {dashboard.pendingAppointments ?? 0}
+              </span>
+
+            </div>
 
           </div>
 
         </div>
 
-        {/* ===================================== */}
-        {/* ALERTS */}
-        {/* ===================================== */}
+      </div>
 
-        <div
-          className="
-            bg-white
-            border
-            border-gray-200
-            rounded-2xl
-            p-5
-            shadow-sm
-          "
-        >
+      {/* ======================================
+          TEMPORARY NOTICE
+      ======================================= */}
 
-          <div className="flex items-center gap-2 mb-5">
+      <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-5">
 
-            <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
+        <AlertCircle
+          size={20}
+          className="mt-0.5 shrink-0 text-blue-600"
+        />
 
-              <AlertCircle
-                size={18}
-                className="text-amber-600"
-              />
+        <div>
+          <p className="text-sm font-semibold text-blue-900">
+            Dashboard API is currently using temporary data
+          </p>
 
-            </div>
-
-            <div>
-
-              <h2 className="font-semibold text-gray-900">
-                Attention Required
-              </h2>
-
-              <p className="text-xs text-gray-500 mt-1">
-                Important updates
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="space-y-3">
-
-            {/* Waiting patient */}
-
-            <div
-              className="
-                flex
-                items-center
-                justify-between
-                p-3
-                bg-amber-50/50
-                border
-                border-amber-100
-                rounded-xl
-              "
-            >
-
-              <div>
-
-                <p className="text-sm font-medium text-gray-800">
-                  1 patient waiting
-                </p>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Mohit Singh • 11:30 AM
-                </p>
-
-              </div>
-
-              <ArrowUpRight
-                size={16}
-                className="text-gray-400"
-              />
-
-            </div>
-
-            {/* Break */}
-
-            <div
-              className="
-                flex
-                items-center
-                justify-between
-                p-3
-                bg-gray-50
-                border
-                border-gray-100
-                rounded-xl
-              "
-            >
-
-              <div>
-
-                <p className="text-sm font-medium text-gray-800">
-                  Next break
-                </p>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  01:00 PM - 02:00 PM
-                </p>
-
-              </div>
-
-              <Clock
-                size={16}
-                className="text-gray-400"
-              />
-
-            </div>
-
-          </div>
-
+          <p className="mt-1 text-xs leading-5 text-blue-700">
+            These statistics are coming from the temporary
+            dashboard backend. Later we will connect
+            patients and appointments with MongoDB to show
+            real-time hospital data.
+          </p>
         </div>
 
       </div>
@@ -677,3 +439,4 @@ export default function DoctorDashboard() {
     </div>
   );
 }
+

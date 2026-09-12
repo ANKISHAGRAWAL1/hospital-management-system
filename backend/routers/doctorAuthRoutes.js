@@ -18,6 +18,7 @@ const {
   resendDoctorOtp,
   setDoctorCredentials,
   loginDoctor,
+  getDoctorMe,
 
   // ==========================================
   // DOCTOR FORGOT PASSWORD
@@ -33,7 +34,6 @@ const {
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
-
 
 // =====================================================
 // ADMIN AUTHENTICATION
@@ -54,7 +54,7 @@ router.post(
 // Get currently logged-in admin
 router.get(
   "/admin/me",
-  protect,
+  protect("admin"),
   authorize("admin"),
   getAdminMe
 );
@@ -62,17 +62,16 @@ router.get(
 // Update logged-in admin profile
 router.put(
   "/admin/profile",
-  protect,
+  protect("admin"),
   authorize("admin"),
   updateAdminProfile
 );
 
-// Logout
+// Admin logout
 router.post(
   "/logout",
   logout
 );
-
 
 // =====================================================
 // DOCTOR FIRST-TIME ACCOUNT SETUP
@@ -97,12 +96,10 @@ router.post(
 );
 
 // Create doctor's username and password
-// This route uses the temporary setupToken
 router.post(
   "/doctor/set-credentials",
   setDoctorCredentials
 );
-
 
 // =====================================================
 // DOCTOR LOGIN
@@ -114,6 +111,17 @@ router.post(
   loginDoctor
 );
 
+// =====================================================
+// LOGGED-IN DOCTOR
+// =====================================================
+
+// Get currently logged-in doctor
+router.get(
+  "/doctor/me",
+  protect("doctor"),
+  authorize("doctor"),
+  getDoctorMe
+);
 
 // =====================================================
 // DOCTOR FORGOT PASSWORD
@@ -132,12 +140,10 @@ router.post(
 );
 
 // Reset doctor password
-// This route uses the temporary resetToken
 router.post(
   "/doctor/reset-password",
   resetDoctorPassword
 );
-
 
 // =====================================================
 // EXPORT ROUTER

@@ -22,17 +22,20 @@ export const getdepartment = async () => {
 // CREATE DEPARTMENT
 export const createDepartment = async (data) => {
   try {
+    console.log("🔥 API CALL START");
+
     const response = await client.post("departments", data);
 
-    if (!response.data.success) {
-      throw new Error(
-        response.data.message || "Failed to create department"
-      );
-    }
+    console.log("🔥 API RESPONSE RECEIVED");
+    console.log("STATUS:", response.status);
+    console.log("DATA:", response.data);
 
     return response.data;
   } catch (error) {
-    console.log(error);
+    console.error("🔥 CREATE DEPARTMENT API ERROR");
+    console.error("ERROR:", error);
+    console.error("RESPONSE:", error?.response?.data);
+
     throw error;
   }
 };

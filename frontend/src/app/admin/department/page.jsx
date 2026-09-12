@@ -1,9 +1,8 @@
- 
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Status from "@/app/components/Status";
+
 import Delete from "@/app/components/Delete";
 
 import {
@@ -25,7 +24,6 @@ export default function DepartmentPage() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
 
   // =========================================================
   // GET DEPARTMENTS
@@ -67,22 +65,18 @@ export default function DepartmentPage() {
   }, []);
 
   // =========================================================
-  // SEARCH + STATUS FILTER
+  // SEARCH
   // =========================================================
 
   const filteredDepartments = departments.filter((department) => {
     const searchText = search.toLowerCase().trim();
 
-    const matchesSearch =
+    return (
       department?.name?.toLowerCase().includes(searchText) ||
       department?.code?.toLowerCase().includes(searchText) ||
-      department?.location?.toLowerCase().includes(searchText);
-
-    const matchesStatus =
-      !status ||
-      department?.status?.toLowerCase() === status.toLowerCase();
-
-    return matchesSearch && matchesStatus;
+      department?.location?.toLowerCase().includes(searchText) ||
+      department?.headDoctor?.toLowerCase?.().includes(searchText)
+    );
   });
 
   return (
@@ -94,39 +88,37 @@ export default function DepartmentPage() {
 
       <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
-        <div>
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
 
-            <div
+          <div
+            className="
+              flex h-10 w-10
+              items-center justify-center
+              rounded-xl
+              bg-[#E6E6FF]
+              text-[#0000FF]
+            "
+          >
+            <Building2 size={20} />
+          </div>
+
+          <div>
+            <h1
               className="
-                flex h-10 w-10
-                items-center justify-center
-                rounded-xl
-                bg-[#E6E6FF]
-                text-[#0000FF]
+                text-2xl
+                font-semibold
+                tracking-tight
+                text-[#202020]
               "
             >
-              <Building2 size={20} />
-            </div>
+              Department Management
+            </h1>
 
-            <div>
-              <h1
-                className="
-                  text-2xl
-                  font-semibold
-                  tracking-tight
-                  text-[#202020]
-                "
-              >
-                Department Management
-              </h1>
-
-              <p className="mt-1 text-sm text-[#666666]">
-                Manage hospital departments and their information
-              </p>
-            </div>
-
+            <p className="mt-1 text-sm text-[#666666]">
+              Manage hospital departments and their information
+            </p>
           </div>
+
         </div>
 
         <div className="flex items-center gap-3">
@@ -187,7 +179,7 @@ export default function DepartmentPage() {
       </div>
 
       {/* =====================================================
-          SEARCH & FILTER
+          SEARCH
       ====================================================== */}
 
       <div
@@ -200,9 +192,7 @@ export default function DepartmentPage() {
           shadow-[0_2px_10px_rgba(0,0,255,0.04)]
         "
       >
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-
-          {/* SEARCH */}
+        <div className="flex items-center">
 
           <div className="relative w-full md:w-96">
 
@@ -243,32 +233,6 @@ export default function DepartmentPage() {
             />
 
           </div>
-
-          {/* STATUS */}
-
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="
-              rounded-xl
-              border border-[#DADAFF]
-              bg-[#F7F7FF]
-              px-4
-              py-2.5
-              text-sm
-              text-[#555555]
-              outline-none
-              transition-all
-              focus:border-[#7777FF]
-              focus:bg-white
-              focus:ring-4
-              focus:ring-[#0000FF]/10
-            "
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
 
         </div>
       </div>
@@ -322,10 +286,6 @@ export default function DepartmentPage() {
                   Location
                 </th>
 
-                <th className="px-5 py-4 font-semibold">
-                  Status
-                </th>
-
                 <th className="px-5 py-4 text-center font-semibold">
                   Actions
                 </th>
@@ -342,7 +302,7 @@ export default function DepartmentPage() {
               {loading && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-5 py-14 text-center text-[#888888]"
                   >
                     <div className="flex flex-col items-center gap-3">
@@ -366,7 +326,7 @@ export default function DepartmentPage() {
               {!loading && error && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-5 py-14 text-center"
                   >
 
@@ -405,7 +365,7 @@ export default function DepartmentPage() {
                 filteredDepartments.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       className="
                         px-5
                         py-14
@@ -547,19 +507,6 @@ export default function DepartmentPage() {
 
                     <td className="px-5 py-4 text-[#666666]">
                       {department.location || "-"}
-                    </td>
-
-                    {/* STATUS */}
-
-                    <td className="px-5 py-4">
-
-                      <Status
-                        value={department.status}
-                        id={department._id}
-                        field="status"
-                        endpoint="departments"
-                      />
-
                     </td>
 
                     {/* ACTIONS */}
@@ -718,4 +665,3 @@ export default function DepartmentPage() {
     </div>
   );
 }
- 

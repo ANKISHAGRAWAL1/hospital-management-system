@@ -2,11 +2,18 @@ const mongoose = require("mongoose");
 
 const doctorSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // PROFILE IMAGE
+    // ==========================================
     profileImage: {
       type: String,
       default: "",
+      trim: true,
     },
 
+    // ==========================================
+    // PERSONAL DETAILS
+    // ==========================================
     firstName: {
       type: String,
       required: true,
@@ -25,6 +32,7 @@ const doctorSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      index: true,
     },
 
     phone: {
@@ -44,21 +52,44 @@ const doctorSchema = new mongoose.Schema(
       required: true,
     },
 
-    specialization: {
+    // ==========================================
+    // LOGIN CREDENTIALS
+    // ==========================================
+    username: {
       type: String,
-      required: true,
+      unique: true,
+      sparse: true,
+      lowercase: true,
       trim: true,
+      index: true,
     },
 
- department: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "Department",
-  required: true,
-},
-    qualification: {
+    password: {
       type: String,
+      select: false,
+    },
+
+    // ==========================================
+    // PROFESSIONAL DETAILS
+    // ==========================================
+
+    // Doctor can have multiple specializations
+    specialization: {
+      type: [String],
       required: true,
-      trim: true,
+    },
+
+    department: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Department",
+      required: true,
+      index: true,
+    },
+
+    // Doctor can have multiple qualifications
+    qualification: {
+      type: [String],
+      required: true,
     },
 
     experience: {
@@ -78,78 +109,125 @@ const doctorSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
+      index: true,
     },
 
-    availableDays: {
-      type: [String],
-      enum: [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ],
-      default: [],
-    },
+    // ==========================================
+    // DOCTOR AVAILABILITY
+    // ==========================================
+    availability: [
+      {
+        day: {
+          type: String,
+          enum: [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+          ],
+          required: true,
+        },
 
-    startTime: {
-      type: String,
-      default: "",
-    },
+        // ======================================
+        // HOSPITAL VISIT
+        // ======================================
+        hospital: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
 
-    endTime: {
-      type: String,
-      default: "",
-    },
+          slots: [
+            {
+              startTime: {
+                type: String,
+                trim: true,
+              },
 
+              endTime: {
+                type: String,
+                trim: true,
+              },
+            },
+          ],
+        },
+
+        // ======================================
+        // VIDEO CONSULTATION
+        // ======================================
+        video: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+
+          slots: [
+            {
+              startTime: {
+                type: String,
+                trim: true,
+              },
+
+              endTime: {
+                type: String,
+                trim: true,
+              },
+            },
+          ],
+        },
+      },
+    ],
+
+    // ==========================================
+    // APPOINTMENT DURATION
+    // ==========================================
     appointmentDuration: {
       type: Number,
       enum: [15, 30, 45, 60],
       default: 30,
     },
 
+    // ==========================================
+    // DOCTOR STATUS
+    // ==========================================
     status: {
       type: Boolean,
       default: true,
+      index: true,
     },
 
+    // ==========================================
+    // ADDRESS
+    // ==========================================
     address: {
       fullAddress: {
         type: String,
         trim: true,
+        default: "",
       },
+
       city: {
         type: String,
         trim: true,
+        default: "",
       },
+
       state: {
         type: String,
         trim: true,
+        default: "",
       },
+
       pincode: {
         type: String,
         trim: true,
+        default: "",
       },
     },
-    username: {
-  type: String,
-  unique: true,
-  sparse: true,
-  trim: true,
-  lowercase: true,
-},
-
-
-password: {
-  type: String,
-  default: "",
-},
-
-
-
-},
+  },
   {
     timestamps: true,
   }

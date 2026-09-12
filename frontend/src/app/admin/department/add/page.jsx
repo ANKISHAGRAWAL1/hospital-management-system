@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -7,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { notify } from "@/app/components/healper";
-import { createDepartment } from "@/app/components/utils/Api-call/get_api"
+import { createDepartment } from "@/app/components/utils/Api-call/get_api";
 
 export default function AddDepartmentPage() {
   const router = useRouter();
@@ -18,7 +17,6 @@ export default function AddDepartmentPage() {
     headDoctor: "",
     location: "",
     description: "",
-    status: "Active",
   });
 
   const [loading, setLoading] = useState(false);
@@ -43,7 +41,6 @@ export default function AddDepartmentPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Required validation
     if (!formData.name.trim()) {
       notify("Department name is required", false);
       return;
@@ -62,7 +59,6 @@ export default function AddDepartmentPage() {
 
         code: formData.code.trim().toUpperCase(),
 
-        // Empty value ko backend par mat bhejo
         ...(formData.headDoctor.trim() && {
           headDoctor: formData.headDoctor.trim(),
         }),
@@ -70,8 +66,6 @@ export default function AddDepartmentPage() {
         location: formData.location.trim(),
 
         description: formData.description.trim(),
-
-        status: formData.status,
       };
 
       console.log("Create Department Payload:", payload);
@@ -86,12 +80,19 @@ export default function AddDepartmentPage() {
         );
       }
 
+      // =====================================================
+      // SUCCESS TOAST
+      // =====================================================
+
       notify(
-        response.message || "Department created successfully",
+        response?.message || "Department created successfully",
         true
       );
 
-      router.push("/admin/department");
+      // Give toast time to appear
+      setTimeout(() => {
+        router.push("/admin/department");
+      }, 800);
 
     } catch (error) {
       console.error("Create Department Error:", error);
@@ -454,55 +455,6 @@ export default function AddDepartmentPage() {
                   disabled:opacity-60
                 "
               />
-
-            </div>
-
-            {/* STATUS */}
-
-            <div className="mt-6">
-
-              <label
-                htmlFor="status"
-                className="
-                  mb-2
-                  block
-                  text-sm
-                  font-medium
-                  text-[#3F4D4F]
-                "
-              >
-                Status
-              </label>
-
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                disabled={loading}
-                className="
-                  w-full
-                  rounded-xl
-                  border border-[#D8E9EA]
-                  bg-[#F8FCFC]
-                  px-4
-                  py-3
-                  text-sm
-                  text-[#4F6062]
-                  outline-none
-                  transition-all
-                  focus:border-[#8CC9C9]
-                  focus:bg-white
-                  focus:ring-4
-                  focus:ring-[#09797A]/10
-                  disabled:cursor-not-allowed
-                  disabled:opacity-60
-                  md:w-1/2
-                "
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
 
             </div>
 

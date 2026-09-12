@@ -1,11 +1,6 @@
 const express = require("express");
 
 const {
-  protect,
-  authorize,
-} = require("../middleware/authMiddleware");
-
-const {
   createDoctor,
   getAllDoctors,
   getDoctorById,
@@ -13,71 +8,64 @@ const {
   deleteDoctor,
 } = require("../controllers/doctorController");
 
-const uploadDoctor = require("../middleware/uploadDoctor");
+const {
+  protect,
+  authorize,
+} = require("../middleware/authMiddleware");
+
+const upload = require("../middleware/upload");
 
 const router = express.Router();
 
-// CREATE DOCTOR
-// POST /api/doctors
-router.post("/", protect,
-  authorize("admin"),
-  uploadDoctor.single("profileImage"),
-  createDoctor
-);
-
+// ==========================================
 // GET ALL DOCTORS
-router.get(
-  "/",
-  protect,
-  authorize("admin"),
-  getAllDoctors
-);
+// GET /api/doctors
+// ==========================================
 
-// GET DOCTOR BY ID
-router.get(
-  "/:id",
-  protect,
-  authorize("admin"),
-  getDoctorById
-);
+router.get("/", getAllDoctors);
 
+// ==========================================
 // UPDATE DOCTOR STATUS
+// PATCH /api/doctors/:id/status
+// ==========================================
+
 router.patch(
   "/:id/status",
-  protect,
+  protect("admin"),
   authorize("admin"),
   updateDoctorStatus
 );
 
-// DELETE DOCTOR
-router.delete(
-  "/:id",
-  protect,
+// ==========================================
+// GET DOCTOR BY ID
+// GET /api/doctors/:id
+// ==========================================
+
+router.get("/:id", getDoctorById);
+
+// ==========================================
+// CREATE DOCTOR
+// POST /api/doctors
+// ==========================================
+
+router.post(
+  "/",
+  protect("admin"),
   authorize("admin"),
-  deleteDoctor
+  upload.single("profile"),
+  createDoctor
 );
 
-// DOCTOR PROFILE
-router.get(
-  "/profile",
-  protect,
-  authorize("doctor"),
-  async (req, res) => {
-    try {
-      return res.status(200).json({
-        success: true,
-        message: "Doctor profile accessed successfully",
-        user: req.user,
-      });
-    } catch (error) {
-      console.error("Doctor Profile Error:", error);
+// ==========================================
+// DELETE DOCTOR
+// DELETE /api/doctors/:id
+// ==========================================
 
-      return res.status(500).json({
-        success: false,
-        message: "Failed to access doctor profile",
-      });
-    }
-  }
+router.delete(
+  "/:id",
+  protect("admin"),
+  authorize("admin"),
+  deleteDoctor
 );
 
 module.exports = router;

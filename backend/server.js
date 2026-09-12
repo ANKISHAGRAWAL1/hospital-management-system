@@ -14,8 +14,8 @@ const departmentRoutes = require("./routers/departmentRout");
 const doctorRoutes = require("./routers/doctorRoutes");
 const authRoutes = require("./routers/doctorAuthRoutes");
 const adminProfileRoutes = require("./routers/profileAdminRouter");
-
-
+const doctorDashboardRoutes = require("./routers/doctorDashboardRoutes");
+const appointmentRoutes = require("./routers/appointmentRoutes");
 
 // ===============================
 // APP
@@ -65,8 +65,21 @@ app.use("/api/doctors", doctorRoutes);
 // Authentication
 app.use("/api/auth", authRoutes);
 
-//  admin proifle update
+// Admin Profile
 app.use("/api/admin", adminProfileRoutes);
+
+// Doctor Dashboard
+app.use(
+  "/api/doctor/dashboard",
+  doctorDashboardRoutes
+);
+
+
+
+app.use(
+  "/api/appointments",
+  appointmentRoutes
+);
 
 // ===============================
 // HEALTH CHECK
