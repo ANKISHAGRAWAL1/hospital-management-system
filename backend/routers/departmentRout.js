@@ -31,23 +31,27 @@ router.get(
   authorize("admin"),
   getDepartmentById
 );
+ 
+const fileuploader = require("express-fileupload");
 
-// Create department
-router.post(
-  "/",
-  protect("admin"),
-  authorize("admin"),
+ router.post(
+  "/creat",
+  fileuploader({ createParentPath: true }),
   createDepartment
 );
+
+ 
 
 // Update complete department
 router.put(
   "/:id",
+  fileuploader({
+    createParentPath: true,
+  }),
   protect("admin"),
   authorize("admin"),
   updateDepartment
 );
-
 // Update department status
 router.patch(
   "/:id/status",

@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,11 +13,18 @@ import {
   Eye,
   RefreshCw,
   Building2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 import {
-  getdepartment,
+  getDepartment,
 } from "@/app/components/utils/Api-call/get_api";
+// =========================================================
+// IMAGE BASE URL
+// =========================================================
+
+const IMAGE_BASE_URL = "http://localhost:5000/departments";
+
 
 export default function DepartmentPage() {
   const [departments, setDepartments] = useState([]);
@@ -24,6 +32,7 @@ export default function DepartmentPage() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+
 
   // =========================================================
   // GET DEPARTMENTS
@@ -34,7 +43,7 @@ export default function DepartmentPage() {
       setLoading(true);
       setError("");
 
-      const response = await getdepartment();
+      const response = await getDepartment();
 
       console.log("Department API Response:", response);
 
@@ -45,6 +54,7 @@ export default function DepartmentPage() {
       }
 
       setDepartments(response.data || []);
+
     } catch (error) {
       console.error("Fetch Department Error:", error);
 
@@ -55,14 +65,21 @@ export default function DepartmentPage() {
       );
 
       setDepartments([]);
+
     } finally {
       setLoading(false);
     }
   };
 
+
+  // =========================================================
+  // INITIAL LOAD
+  // =========================================================
+
   useEffect(() => {
     fetchDepartments();
   }, []);
+
 
   // =========================================================
   // SEARCH
@@ -75,9 +92,23 @@ export default function DepartmentPage() {
       department?.name?.toLowerCase().includes(searchText) ||
       department?.code?.toLowerCase().includes(searchText) ||
       department?.location?.toLowerCase().includes(searchText) ||
-      department?.headDoctor?.toLowerCase?.().includes(searchText)
+      department?.headDoctor
+        ?.toLowerCase?.()
+        .includes(searchText)
     );
   });
+
+
+  // =========================================================
+  // IMAGE URL
+  // =========================================================
+
+  const getDepartmentImage = (image) => {
+    if (!image) return "";
+
+    return `${IMAGE_BASE_URL}/${image}`;
+  };
+
 
   return (
     <div className="min-h-screen bg-[#F5F7FF] p-6 text-[#202020]">
@@ -103,6 +134,7 @@ export default function DepartmentPage() {
           </div>
 
           <div>
+
             <h1
               className="
                 text-2xl
@@ -117,9 +149,11 @@ export default function DepartmentPage() {
             <p className="mt-1 text-sm text-[#666666]">
               Manage hospital departments and their information
             </p>
+
           </div>
 
         </div>
+
 
         <div className="flex items-center gap-3">
 
@@ -151,6 +185,7 @@ export default function DepartmentPage() {
             />
           </button>
 
+
           {/* ADD DEPARTMENT */}
 
           <Link
@@ -176,7 +211,9 @@ export default function DepartmentPage() {
           </Link>
 
         </div>
+
       </div>
+
 
       {/* =====================================================
           SEARCH
@@ -192,6 +229,7 @@ export default function DepartmentPage() {
           shadow-[0_2px_10px_rgba(0,0,255,0.04)]
         "
       >
+
         <div className="flex items-center">
 
           <div className="relative w-full md:w-96">
@@ -235,7 +273,9 @@ export default function DepartmentPage() {
           </div>
 
         </div>
+
       </div>
+
 
       {/* =====================================================
           TABLE CARD
@@ -255,7 +295,9 @@ export default function DepartmentPage() {
 
           <table className="w-full text-sm">
 
-            {/* TABLE HEAD */}
+            {/* =================================================
+                TABLE HEAD
+            ================================================== */}
 
             <thead
               className="
@@ -264,47 +306,80 @@ export default function DepartmentPage() {
                 bg-[#F5F5FF]
               "
             >
+
               <tr className="text-left text-[#555555]">
+
+                {/* IMAGE */}
+
+                <th className="px-5 py-4 text-center font-semibold">
+                  Image
+                </th>
+
+
+                {/* DEPARTMENT */}
 
                 <th className="px-5 py-4 font-semibold">
                   Department
                 </th>
 
+
+                {/* CODE */}
+
                 <th className="px-5 py-4 font-semibold">
                   Code
                 </th>
+
+
+                {/* HEAD DOCTOR */}
 
                 <th className="px-5 py-4 font-semibold">
                   Head Doctor
                 </th>
 
+
+                {/* DOCTORS */}
+
                 <th className="px-5 py-4 text-center font-semibold">
                   Doctors
                 </th>
 
+
+                {/* LOCATION */}
+
                 <th className="px-5 py-4 font-semibold">
                   Location
                 </th>
+
+
+                {/* ACTIONS */}
 
                 <th className="px-5 py-4 text-center font-semibold">
                   Actions
                 </th>
 
               </tr>
+
             </thead>
 
-            {/* TABLE BODY */}
+
+            {/* =================================================
+                TABLE BODY
+            ================================================== */}
 
             <tbody>
 
-              {/* LOADING */}
+              {/* =================================================
+                  LOADING
+              ================================================== */}
 
               {loading && (
                 <tr>
+
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-14 text-center text-[#888888]"
                   >
+
                     <div className="flex flex-col items-center gap-3">
 
                       <RefreshCw
@@ -317,16 +392,22 @@ export default function DepartmentPage() {
                       </span>
 
                     </div>
+
                   </td>
+
                 </tr>
               )}
 
-              {/* ERROR */}
+
+              {/* =================================================
+                  ERROR
+              ================================================== */}
 
               {!loading && error && (
                 <tr>
+
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-14 text-center"
                   >
 
@@ -355,17 +436,22 @@ export default function DepartmentPage() {
                     </button>
 
                   </td>
+
                 </tr>
               )}
 
-              {/* EMPTY */}
+
+              {/* =================================================
+                  EMPTY
+              ================================================== */}
 
               {!loading &&
                 !error &&
                 filteredDepartments.length === 0 && (
                   <tr>
+
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="
                         px-5
                         py-14
@@ -373,14 +459,20 @@ export default function DepartmentPage() {
                         text-[#888888]
                       "
                     >
+
                       {departments.length === 0
                         ? "No departments found"
                         : "No departments match your search"}
+
                     </td>
+
                   </tr>
                 )}
 
-              {/* DEPARTMENTS */}
+
+              {/* =================================================
+                  DEPARTMENTS
+              ================================================== */}
 
               {!loading &&
                 !error &&
@@ -397,27 +489,66 @@ export default function DepartmentPage() {
                     "
                   >
 
-                    {/* DEPARTMENT */}
+                    {/* =================================================
+                        IMAGE
+                    ================================================== */}
+
+                    <td className="px-5 py-4">
+
+                      <div className="flex items-center justify-center">
+
+                        {department.image ? (
+
+                          <img
+                            src={getDepartmentImage(
+                              department.image
+                            )}
+                            alt={
+                              department.name ||
+                              "Department"
+                            }
+                            className="
+                              h-12
+                              w-12
+                              rounded-xl
+                              border
+                              border-[#DADAFF]
+                              object-cover
+                              shadow-sm
+                            "
+                          />
+
+                        ) : (
+
+                          <div
+                            className="
+                              flex
+                              h-12
+                              w-12
+                              items-center
+                              justify-center
+                              rounded-xl
+                              bg-[#E8E8FF]
+                              text-[#0000FF]
+                            "
+                          >
+                            <ImageIcon size={18} />
+                          </div>
+
+                        )}
+
+                      </div>
+
+                    </td>
+
+
+                    {/* =================================================
+                        DEPARTMENT
+                    ================================================== */}
 
                     <td className="px-5 py-4">
 
                       <div className="flex items-center gap-3">
-
-                        <div
-                          className="
-                            flex
-                            h-9
-                            w-9
-                            shrink-0
-                            items-center
-                            justify-center
-                            rounded-lg
-                            bg-[#E8E8FF]
-                            text-[#0000FF]
-                          "
-                        >
-                          <Building2 size={17} />
-                        </div>
 
                         <div>
 
@@ -429,6 +560,7 @@ export default function DepartmentPage() {
                           >
                             {department.name || "-"}
                           </div>
+
 
                           {department.description && (
                             <div
@@ -450,7 +582,10 @@ export default function DepartmentPage() {
 
                     </td>
 
-                    {/* CODE */}
+
+                    {/* =================================================
+                        CODE
+                    ================================================== */}
 
                     <td className="px-5 py-4">
 
@@ -471,13 +606,22 @@ export default function DepartmentPage() {
 
                     </td>
 
-                    {/* HEAD DOCTOR */}
+
+                    {/* =================================================
+                        HEAD DOCTOR
+                    ================================================== */}
 
                     <td className="px-5 py-4 text-[#555555]">
-                      {department.headDoctor || "Not Assigned"}
+
+                      {department.headDoctor ||
+                        "Not Assigned"}
+
                     </td>
 
-                    {/* DOCTORS */}
+
+                    {/* =================================================
+                        DOCTORS
+                    ================================================== */}
 
                     <td className="px-5 py-4 text-center">
 
@@ -496,20 +640,30 @@ export default function DepartmentPage() {
                           text-[#0000FF]
                         "
                       >
-                        {Array.isArray(department.doctors)
+                        {Array.isArray(
+                          department.doctors
+                        )
                           ? department.doctors.length
                           : department.doctorCount || 0}
                       </span>
 
                     </td>
 
-                    {/* LOCATION */}
+
+                    {/* =================================================
+                        LOCATION
+                    ================================================== */}
 
                     <td className="px-5 py-4 text-[#666666]">
+
                       {department.location || "-"}
+
                     </td>
 
-                    {/* ACTIONS */}
+
+                    {/* =================================================
+                        ACTIONS
+                    ================================================== */}
 
                     <td className="px-5 py-4">
 
@@ -532,6 +686,7 @@ export default function DepartmentPage() {
                           <Eye size={17} />
                         </Link>
 
+
                         {/* EDIT */}
 
                         <Link
@@ -548,6 +703,7 @@ export default function DepartmentPage() {
                         >
                           <Pencil size={17} />
                         </Link>
+
 
                         {/* DELETE */}
 
@@ -570,7 +726,10 @@ export default function DepartmentPage() {
 
         </div>
 
-        {/* FOOTER */}
+
+        {/* =====================================================
+            FOOTER
+        ====================================================== */}
 
         <div
           className="
@@ -606,6 +765,7 @@ export default function DepartmentPage() {
 
           </p>
 
+
           <div className="flex gap-2">
 
             <button
@@ -624,6 +784,7 @@ export default function DepartmentPage() {
               Previous
             </button>
 
+
             <button
               type="button"
               className="
@@ -639,6 +800,7 @@ export default function DepartmentPage() {
             >
               1
             </button>
+
 
             <button
               type="button"
@@ -665,3 +827,4 @@ export default function DepartmentPage() {
     </div>
   );
 }
+

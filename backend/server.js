@@ -47,26 +47,58 @@ app.use(express.urlencoded({ extended: true }));
 // STATIC UPLOADS
 // ===============================
 
+// Existing uploads folder
 app.use(
   "/uploads",
-  express.static(path.join(__dirname, "uploads"))
+  express.static(
+    path.join(__dirname, "uploads")
+  )
 );
+
+
+// ===============================
+// DEPARTMENT IMAGES
+// ===============================
+
+app.use(
+  "/departments",
+  express.static(
+    path.join(
+      __dirname,
+      "public",
+      "departments"
+    )
+  )
+);
+
 
 // ===============================
 // API ROUTES
 // ===============================
 
 // Departments
-app.use("/api/departments", departmentRoutes);
+app.use(
+  "/api/departments",
+  departmentRoutes
+);
 
 // Doctors
-app.use("/api/doctors", doctorRoutes);
+app.use(
+  "/api/doctors",
+  doctorRoutes
+);
 
 // Authentication
-app.use("/api/auth", authRoutes);
+app.use(
+  "/api/auth",
+  authRoutes
+);
 
 // Admin Profile
-app.use("/api/admin", adminProfileRoutes);
+app.use(
+  "/api/admin",
+  adminProfileRoutes
+);
 
 // Doctor Dashboard
 app.use(
@@ -74,12 +106,12 @@ app.use(
   doctorDashboardRoutes
 );
 
-
-
+// Appointments
 app.use(
   "/api/appointments",
   appointmentRoutes
 );
+
 
 // ===============================
 // HEALTH CHECK
@@ -92,6 +124,7 @@ app.get("/", (req, res) => {
   });
 });
 
+
 // ===============================
 // SERVER
 // ===============================
@@ -99,5 +132,7 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(
+    `Server running on port ${PORT}`
+  );
 });

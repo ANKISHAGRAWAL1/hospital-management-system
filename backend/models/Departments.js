@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 const departmentSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // DEPARTMENT NAME
+    // ==========================================
     name: {
       type: String,
       required: true,
@@ -9,6 +12,9 @@ const departmentSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ==========================================
+    // DEPARTMENT CODE
+    // ==========================================
     code: {
       type: String,
       required: true,
@@ -17,21 +23,43 @@ const departmentSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ==========================================
+    // DEPARTMENT IMAGE
+    // ==========================================
+    image: {
+      type: String,
+      default: "",
+    },
+
+    // ==========================================
+    // HEAD DOCTOR
+    // ==========================================
     headDoctor: {
       type: String,
       default: "",
     },
 
+    // ==========================================
+    // DESCRIPTION
+    // ==========================================
     description: {
       type: String,
       trim: true,
+      default: "",
     },
 
+    // ==========================================
+    // LOCATION
+    // ==========================================
     location: {
       type: String,
       trim: true,
+      default: "",
     },
 
+    // ==========================================
+    // STATUS
+    // ==========================================
     status: {
       type: Boolean,
       default: true,
