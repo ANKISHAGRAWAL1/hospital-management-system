@@ -460,48 +460,7 @@ export default function DoctorLoginPage() {
               {/* =================================
                   FIRST TIME DOCTOR
               ================================== */}
-
-              <div className="mt-7 rounded-2xl border border-blue-100 bg-blue-50 p-5">
-
-                <div className="flex gap-3">
-
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">
-
-                    <KeyRound
-                      size={19}
-                      className="text-blue-600"
-                    />
-
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <p className="text-sm font-semibold text-blue-900">
-                      First time accessing your account?
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-blue-700">
-                      If your hospital administrator has
-                      registered your account, create your
-                      password using email verification.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleCreatePassword}
-                      disabled={loading}
-                      className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 transition hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Create doctor password
-
-                      <ArrowRight size={15} />
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </div>
+ 
 
               {/* =================================
                   HELP / SUPPORT

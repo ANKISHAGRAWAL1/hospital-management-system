@@ -1,18 +1,20 @@
 const express = require("express");
 
 const {
-  // ==========================================
+  // =====================================================
   // ADMIN AUTH
-  // ==========================================
+  // =====================================================
+
   registerAdmin,
   adminLogin,
   logout,
   getAdminMe,
   updateAdminProfile,
 
-  // ==========================================
+  // =====================================================
   // DOCTOR AUTH
-  // ==========================================
+  // =====================================================
+
   sendDoctorOtp,
   verifyDoctorOtp,
   resendDoctorOtp,
@@ -20,9 +22,10 @@ const {
   loginDoctor,
   getDoctorMe,
 
-  // ==========================================
+  // =====================================================
   // DOCTOR FORGOT PASSWORD
-  // ==========================================
+  // =====================================================
+
   forgotDoctorPassword,
   verifyDoctorResetOtp,
   resetDoctorPassword,
@@ -40,18 +43,21 @@ const router = express.Router();
 // =====================================================
 
 // Register first admin
+// POST /api/auth/register-admin
 router.post(
   "/register-admin",
   registerAdmin
 );
 
 // Admin login
+// POST /api/auth/admin/login
 router.post(
   "/admin/login",
   adminLogin
 );
 
 // Get currently logged-in admin
+// GET /api/auth/admin/me
 router.get(
   "/admin/me",
   protect("admin"),
@@ -60,6 +66,7 @@ router.get(
 );
 
 // Update logged-in admin profile
+// PUT /api/auth/admin/profile
 router.put(
   "/admin/profile",
   protect("admin"),
@@ -68,6 +75,7 @@ router.put(
 );
 
 // Admin logout
+// POST /api/auth/logout
 router.post(
   "/logout",
   logout
@@ -78,24 +86,28 @@ router.post(
 // =====================================================
 
 // Send OTP to registered doctor's email
+// POST /api/auth/doctor/send-otp
 router.post(
   "/doctor/send-otp",
   sendDoctorOtp
 );
 
 // Verify first-time setup OTP
+// POST /api/auth/doctor/verify-otp
 router.post(
   "/doctor/verify-otp",
   verifyDoctorOtp
 );
 
 // Resend first-time setup OTP
+// POST /api/auth/doctor/resend-otp
 router.post(
   "/doctor/resend-otp",
   resendDoctorOtp
 );
 
 // Create doctor's username and password
+// POST /api/auth/doctor/set-credentials
 router.post(
   "/doctor/set-credentials",
   setDoctorCredentials
@@ -106,6 +118,7 @@ router.post(
 // =====================================================
 
 // Doctor login
+// POST /api/auth/doctor/login
 router.post(
   "/doctor/login",
   loginDoctor
@@ -116,6 +129,7 @@ router.post(
 // =====================================================
 
 // Get currently logged-in doctor
+// GET /api/auth/doctor/me
 router.get(
   "/doctor/me",
   protect("doctor"),
@@ -128,18 +142,21 @@ router.get(
 // =====================================================
 
 // Send password reset OTP
+// POST /api/auth/doctor/forgot-password
 router.post(
   "/doctor/forgot-password",
   forgotDoctorPassword
 );
 
 // Verify password reset OTP
+// POST /api/auth/doctor/forgot-password/verify-otp
 router.post(
   "/doctor/forgot-password/verify-otp",
   verifyDoctorResetOtp
 );
 
 // Reset doctor password
+// POST /api/auth/doctor/reset-password
 router.post(
   "/doctor/reset-password",
   resetDoctorPassword

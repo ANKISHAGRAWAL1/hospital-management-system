@@ -18,7 +18,7 @@ import {
 } from "@/app/components/utils/Api-call/doctor-api";
 
 import {
-  getdepartment,
+  getDepartment,
 } from "@/app/components/utils/Api-call/get_api";
 
 import { notify } from "@/app/components/healper";
@@ -153,26 +153,19 @@ const specializationOptions = [
 export default function AddDoctorPage() {
   const router = useRouter();
 
-  const [formData, setFormData] =
-    useState(initialFormData);
+  const [formData, setFormData] = useState(initialFormData);
 
-  const [departments, setDepartments] =
-    useState([]);
+  const [departments, setDepartments] = useState([]);
 
-  const [errors, setErrors] =
-    useState({});
+  const [errors, setErrors] = useState({});
 
-  const [profileImage, setProfileImage] =
-    useState(null);
+  const [profileImage, setProfileImage] = useState(null);
 
-  const [imagePreview, setImagePreview] =
-    useState("");
+  const [imagePreview, setImagePreview] = useState("");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [departmentLoading, setDepartmentLoading] =
-    useState(true);
+  const [departmentLoading, setDepartmentLoading] = useState(true);
 
   // =====================================================
   // GET DEPARTMENTS
@@ -181,7 +174,7 @@ export default function AddDoctorPage() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await getdepartment();
+        const response = await getDepartment();
 
         const data = Array.isArray(response)
           ? response
@@ -193,10 +186,7 @@ export default function AddDoctorPage() {
 
         setDepartments(data);
       } catch (error) {
-        console.error(
-          "Department error:",
-          error
-        );
+        console.error("Department error:", error);
 
         notify(
           "Failed to load departments",
@@ -261,9 +251,7 @@ export default function AddDoctorPage() {
   // SPECIALIZATION CHANGE
   // =====================================================
 
-  const handleSpecializationChange = (
-    selected
-  ) => {
+  const handleSpecializationChange = (selected) => {
     const values = selected
       ? selected.map((item) => item.value)
       : [];
@@ -283,9 +271,7 @@ export default function AddDoctorPage() {
   // QUALIFICATION CHANGE
   // =====================================================
 
-  const handleQualificationChange = (
-    selected
-  ) => {
+  const handleQualificationChange = (selected) => {
     const values = selected
       ? selected.map((item) => item.value)
       : [];
@@ -305,13 +291,10 @@ export default function AddDoctorPage() {
   // DEPARTMENT CHANGE
   // =====================================================
 
-  const handleDepartmentChange = (
-    selected
-  ) => {
+  const handleDepartmentChange = (selected) => {
     setFormData((prev) => ({
       ...prev,
-      department:
-        selected?.value || "",
+      department: selected?.value || "",
     }));
 
     setErrors((prev) => ({
@@ -326,18 +309,16 @@ export default function AddDoctorPage() {
 
   const handleDayChange = (day) => {
     setFormData((prev) => {
-      const exists =
-        prev.availability.some(
-          (item) => item.day === day
-        );
+      const exists = prev.availability.some(
+        (item) => item.day === day
+      );
 
       if (exists) {
         return {
           ...prev,
-          availability:
-            prev.availability.filter(
-              (item) => item.day !== day
-            ),
+          availability: prev.availability.filter(
+            (item) => item.day !== day
+          ),
         };
       }
 
@@ -360,26 +341,21 @@ export default function AddDoctorPage() {
   // TOGGLE HOSPITAL / VIDEO
   // =====================================================
 
-  const handleModeToggle = (
-    day,
-    mode
-  ) => {
+  const handleModeToggle = (day, mode) => {
     setFormData((prev) => ({
       ...prev,
-      availability:
-        prev.availability.map(
-          (item) =>
-            item.day === day
-              ? {
-                  ...item,
-                  [mode]: {
-                    ...item[mode],
-                    enabled:
-                      !item[mode].enabled,
-                  },
-                }
-              : item
-        ),
+      availability: prev.availability.map(
+        (item) =>
+          item.day === day
+            ? {
+                ...item,
+                [mode]: {
+                  ...item[mode],
+                  enabled: !item[mode].enabled,
+                },
+              }
+            : item
+      ),
     }));
 
     setErrors((prev) => ({
@@ -401,33 +377,32 @@ export default function AddDoctorPage() {
   ) => {
     setFormData((prev) => ({
       ...prev,
-      availability:
-        prev.availability.map(
-          (item) => {
-            if (item.day !== day) {
-              return item;
-            }
-
-            const updatedSlots =
-              item[mode].slots.map(
-                (slot, index) =>
-                  index === slotIndex
-                    ? {
-                        ...slot,
-                        [field]: value,
-                      }
-                    : slot
-              );
-
-            return {
-              ...item,
-              [mode]: {
-                ...item[mode],
-                slots: updatedSlots,
-              },
-            };
+      availability: prev.availability.map(
+        (item) => {
+          if (item.day !== day) {
+            return item;
           }
-        ),
+
+          const updatedSlots =
+            item[mode].slots.map(
+              (slot, index) =>
+                index === slotIndex
+                  ? {
+                      ...slot,
+                      [field]: value,
+                    }
+                  : slot
+            );
+
+          return {
+            ...item,
+            [mode]: {
+              ...item[mode],
+              slots: updatedSlots,
+            },
+          };
+        }
+      ),
     }));
 
     setErrors((prev) => ({
@@ -440,31 +415,27 @@ export default function AddDoctorPage() {
   // ADD TIMING
   // =====================================================
 
-  const addTiming = (
-    day,
-    mode
-  ) => {
+  const addTiming = (day, mode) => {
     setFormData((prev) => ({
       ...prev,
-      availability:
-        prev.availability.map(
-          (item) =>
-            item.day === day
-              ? {
-                  ...item,
-                  [mode]: {
-                    ...item[mode],
-                    slots: [
-                      ...item[mode].slots,
-                      {
-                        startTime: "",
-                        endTime: "",
-                      },
-                    ],
-                  },
-                }
-              : item
-        ),
+      availability: prev.availability.map(
+        (item) =>
+          item.day === day
+            ? {
+                ...item,
+                [mode]: {
+                  ...item[mode],
+                  slots: [
+                    ...item[mode].slots,
+                    {
+                      startTime: "",
+                      endTime: "",
+                    },
+                  ],
+                },
+              }
+            : item
+      ),
     }));
   };
 
@@ -479,32 +450,27 @@ export default function AddDoctorPage() {
   ) => {
     setFormData((prev) => ({
       ...prev,
-      availability:
-        prev.availability.map(
-          (item) => {
-            if (item.day !== day) {
-              return item;
-            }
-
-            if (
-              item[mode].slots.length === 1
-            ) {
-              return item;
-            }
-
-            return {
-              ...item,
-              [mode]: {
-                ...item[mode],
-                slots:
-                  item[mode].slots.filter(
-                    (_, index) =>
-                      index !== slotIndex
-                  ),
-              },
-            };
+      availability: prev.availability.map(
+        (item) => {
+          if (item.day !== day) {
+            return item;
           }
-        ),
+
+          if (item[mode].slots.length === 1) {
+            return item;
+          }
+
+          return {
+            ...item,
+            [mode]: {
+              ...item[mode],
+              slots: item[mode].slots.filter(
+                (_, index) => index !== slotIndex
+              ),
+            },
+          };
+        }
+      ),
     }));
   };
 
@@ -513,8 +479,7 @@ export default function AddDoctorPage() {
   // =====================================================
 
   const handleImageChange = (e) => {
-    const file =
-      e.target.files?.[0];
+    const file = e.target.files?.[0];
 
     if (!file) return;
 
@@ -532,10 +497,7 @@ export default function AddDoctorPage() {
       return;
     }
 
-    if (
-      file.size >
-      2 * 1024 * 1024
-    ) {
+    if (file.size > 2 * 1024 * 1024) {
       notify(
         "Image must be less than 2MB",
         false
@@ -565,9 +527,7 @@ export default function AddDoctorPage() {
     const [hours, minutes] =
       time.split(":").map(Number);
 
-    return (
-      hours * 60 + minutes
-    );
+    return hours * 60 + minutes;
   };
 
   const validateSlots = (
@@ -597,15 +557,13 @@ export default function AddDoctorPage() {
         return false;
       }
 
-      const start =
-        timeToMinutes(
-          slot.startTime
-        );
+      const start = timeToMinutes(
+        slot.startTime
+      );
 
-      const end =
-        timeToMinutes(
-          slot.endTime
-        );
+      const end = timeToMinutes(
+        slot.endTime
+      );
 
       if (
         start === null ||
@@ -625,37 +583,23 @@ export default function AddDoctorPage() {
       }
     }
 
-    const sortedSlots = [
-      ...slots,
-    ].sort(
+    const sortedSlots = [...slots].sort(
       (a, b) =>
-        timeToMinutes(
-          a.startTime
-        ) -
-        timeToMinutes(
-          b.startTime
-        )
+        timeToMinutes(a.startTime) -
+        timeToMinutes(b.startTime)
     );
 
     for (
       let i = 0;
-      i <
-      sortedSlots.length - 1;
+      i < sortedSlots.length - 1;
       i++
     ) {
-      const current =
-        sortedSlots[i];
-
-      const next =
-        sortedSlots[i + 1];
+      const current = sortedSlots[i];
+      const next = sortedSlots[i + 1];
 
       if (
-        timeToMinutes(
-          next.startTime
-        ) <
-        timeToMinutes(
-          current.endTime
-        )
+        timeToMinutes(next.startTime) <
+        timeToMinutes(current.endTime)
       ) {
         newErrors.availability =
           `${day}: ${mode} timings cannot overlap`;
@@ -673,8 +617,6 @@ export default function AddDoctorPage() {
 
   const validateForm = () => {
     const newErrors = {};
-
-    // PERSONAL INFORMATION
 
     if (!formData.firstName.trim()) {
       newErrors.firstName =
@@ -720,8 +662,6 @@ export default function AddDoctorPage() {
         "Date of birth is required";
     }
 
-    // PROFESSIONAL INFORMATION
-
     if (
       !Array.isArray(
         formData.specialization
@@ -752,18 +692,12 @@ export default function AddDoctorPage() {
         "Experience is required";
     }
 
-    if (
-      !formData.licenseNumber.trim()
-    ) {
+    if (!formData.licenseNumber.trim()) {
       newErrors.licenseNumber =
         "License number is required";
     }
 
-    // AVAILABILITY
-
-    if (
-      !formData.availability.length
-    ) {
+    if (!formData.availability.length) {
       newErrors.availability =
         "Select at least one day";
     } else {
@@ -788,22 +722,19 @@ export default function AddDoctorPage() {
         }
 
         if (hospital.enabled) {
-          if (
-            !hospital.slots.length
-          ) {
+          if (!hospital.slots.length) {
             newErrors.availability =
               `${day}: Hospital timing is required`;
 
             break;
           }
 
-          const valid =
-            validateSlots(
-              hospital.slots,
-              day,
-              "Hospital Visit",
-              newErrors
-            );
+          const valid = validateSlots(
+            hospital.slots,
+            day,
+            "Hospital Visit",
+            newErrors
+          );
 
           if (!valid) {
             break;
@@ -811,22 +742,19 @@ export default function AddDoctorPage() {
         }
 
         if (video.enabled) {
-          if (
-            !video.slots.length
-          ) {
+          if (!video.slots.length) {
             newErrors.availability =
               `${day}: Video consultation timing is required`;
 
             break;
           }
 
-          const valid =
-            validateSlots(
-              video.slots,
-              day,
-              "Video Consultation",
-              newErrors
-            );
+          const valid = validateSlots(
+            video.slots,
+            day,
+            "Video Consultation",
+            newErrors
+          );
 
           if (!valid) {
             break;
@@ -835,11 +763,7 @@ export default function AddDoctorPage() {
       }
     }
 
-    // ADDRESS
-
-    if (
-      !formData.fullAddress.trim()
-    ) {
+    if (!formData.fullAddress.trim()) {
       newErrors.fullAddress =
         "Address is required";
     }
@@ -869,8 +793,7 @@ export default function AddDoctorPage() {
     setErrors(newErrors);
 
     return (
-      Object.keys(newErrors).length ===
-      0
+      Object.keys(newErrors).length === 0
     );
   };
 
@@ -892,12 +815,7 @@ export default function AddDoctorPage() {
     try {
       setLoading(true);
 
-      const data =
-        new FormData();
-
-      // ================================================
-      // NORMAL FIELDS
-      // ================================================
+      const data = new FormData();
 
       data.append(
         "firstName",
@@ -928,10 +846,6 @@ export default function AddDoctorPage() {
         "dateOfBirth",
         formData.dateOfBirth
       );
-
-      // ================================================
-      // MULTI SELECT
-      // ================================================
 
       data.append(
         "specialization",
@@ -967,10 +881,6 @@ export default function AddDoctorPage() {
         formData.licenseNumber
       );
 
-      // ================================================
-      // AVAILABILITY
-      // ================================================
-
       data.append(
         "availability",
         JSON.stringify(
@@ -978,18 +888,10 @@ export default function AddDoctorPage() {
         )
       );
 
-      // ================================================
-      // APPOINTMENT DURATION
-      // ================================================
-
       data.append(
         "appointmentDuration",
         formData.appointmentDuration
       );
-
-      // ================================================
-      // ADDRESS
-      // ================================================
 
       data.append(
         "fullAddress",
@@ -1011,20 +913,10 @@ export default function AddDoctorPage() {
         formData.pincode
       );
 
-      // ================================================
-      // STATUS
-      // ================================================
-
       data.append(
         "status",
         "true"
       );
-
-      // ================================================
-      // PROFILE IMAGE
-      // IMPORTANT:
-      // Backend uses upload.single("profile")
-      // ================================================
 
       if (profileImage) {
         data.append(
@@ -1032,10 +924,6 @@ export default function AddDoctorPage() {
           profileImage
         );
       }
-
-      // ================================================
-      // API CALL
-      // ================================================
 
       const response =
         await createDoctor(data);
@@ -1063,8 +951,7 @@ export default function AddDoctorPage() {
       );
 
       notify(
-        error?.response?.data
-          ?.message ||
+        error?.response?.data?.message ||
           "Something went wrong",
         false
       );
@@ -1101,9 +988,7 @@ export default function AddDoctorPage() {
   // ERROR MESSAGE
   // =====================================================
 
-  const ErrorMessage = ({
-    name,
-  }) => {
+  const ErrorMessage = ({ name }) => {
     if (!errors[name]) {
       return null;
     }
@@ -1145,17 +1030,10 @@ export default function AddDoctorPage() {
   // REACT SELECT STYLES
   // =====================================================
 
-  const selectStyles = (
-    fieldName
-  ) => ({
-    control: (
-      base,
-      state
-    ) => ({
+  const selectStyles = (fieldName) => ({
+    control: (base, state) => ({
       ...base,
-
-      backgroundColor:
-        "#FFFFFF",
+      backgroundColor: "#FFFFFF",
 
       borderColor:
         errors[fieldName]
@@ -1170,7 +1048,6 @@ export default function AddDoctorPage() {
           : "none",
 
       minHeight: "42px",
-
       borderRadius: "8px",
 
       "&:hover": {
@@ -1183,23 +1060,14 @@ export default function AddDoctorPage() {
 
     menu: (base) => ({
       ...base,
-
-      backgroundColor:
-        "#FFFFFF",
-
-      border:
-        "1px solid #E2E8F0",
-
+      backgroundColor: "#FFFFFF",
+      border: "1px solid #E2E8F0",
       boxShadow:
         "0 8px 20px rgba(15,23,42,0.08)",
-
       zIndex: 50,
     }),
 
-    option: (
-      base,
-      state
-    ) => ({
+    option: (base, state) => ({
       ...base,
 
       backgroundColor:
@@ -1217,9 +1085,7 @@ export default function AddDoctorPage() {
       cursor: "pointer",
     }),
 
-    singleValue: (
-      base
-    ) => ({
+    singleValue: (base) => ({
       ...base,
       color: "#0F172A",
     }),
@@ -1229,9 +1095,7 @@ export default function AddDoctorPage() {
       color: "#0F172A",
     }),
 
-    placeholder: (
-      base
-    ) => ({
+    placeholder: (base) => ({
       ...base,
       color: "#94A3B8",
     }),
@@ -1242,17 +1106,13 @@ export default function AddDoctorPage() {
       borderRadius: "6px",
     }),
 
-    multiValueLabel: (
-      base
-    ) => ({
+    multiValueLabel: (base) => ({
       ...base,
       color: "#0F766E",
       fontWeight: 500,
     }),
 
-    multiValueRemove: (
-      base
-    ) => ({
+    multiValueRemove: (base) => ({
       ...base,
       color: "#0F766E",
 
@@ -1271,13 +1131,11 @@ export default function AddDoctorPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6 text-[#0F172A]">
       <div className="mx-auto max-w-[1400px]">
 
-        {/* HEADER */}
-
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
 
             <Link
-              href="/admin/doctors"
+              href="/admin/doctor"
               className="
                 flex
                 h-10
@@ -1313,8 +1171,6 @@ export default function AddDoctorPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-
-          {/* PROFILE PHOTO */}
 
           <div
             className="
@@ -1426,8 +1282,6 @@ export default function AddDoctorPage() {
               </div>
             </div>
           </div>
-
-          {/* PERSONAL INFORMATION */}
 
           <div
             className="
@@ -1563,8 +1417,6 @@ export default function AddDoctorPage() {
 
             </div>
           </div>
-
-          {/* PROFESSIONAL INFORMATION */}
 
           <div
             className="
@@ -1706,8 +1558,6 @@ export default function AddDoctorPage() {
             </div>
           </div>
 
-          {/* AVAILABILITY */}
-
           <div
             className="
               mb-6
@@ -1829,8 +1679,6 @@ export default function AddDoctorPage() {
                       </div>
 
                       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-                        {/* HOSPITAL VISIT */}
 
                         <div
                           className="
@@ -2026,8 +1874,6 @@ export default function AddDoctorPage() {
                           )}
 
                         </div>
-
-                        {/* VIDEO CONSULTATION */}
 
                         <div
                           className="
@@ -2233,8 +2079,6 @@ export default function AddDoctorPage() {
 
             </div>
 
-            {/* APPOINTMENT DURATION */}
-
             <div className="mt-6 max-w-sm">
 
               <label className="mb-2 block text-sm font-medium text-[#475569]">
@@ -2269,8 +2113,6 @@ export default function AddDoctorPage() {
             </div>
 
           </div>
-
-          {/* ADDRESS */}
 
           <div
             className="
@@ -2370,12 +2212,10 @@ export default function AddDoctorPage() {
 
           </div>
 
-          {/* ACTIONS */}
-
           <div className="flex justify-end gap-3 pb-6">
 
             <Link
-              href="/admin/doctors"
+              href="/admin/doctor"
               className="
                 rounded-lg
                 border

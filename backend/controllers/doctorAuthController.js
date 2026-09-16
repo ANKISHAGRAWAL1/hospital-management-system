@@ -2,7 +2,7 @@
 
 const Doctor = require("../models/Doctor");
 const DoctorOtp = require("../models/DoctorOtp");
-const User = require("../models/User");
+const User = require("../models/user");
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -916,8 +916,6 @@ const loginDoctor = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-   
-
     // ==========================================
     // REQUIRED FIELDS
     // ==========================================
@@ -936,65 +934,6 @@ const loginDoctor = async (req, res) => {
       .toLowerCase();
 
     // ==========================================
-    // FIND DOCTOR
-    // ==========================================
-  const doctor = await Doctor.findOne({
-  email: cleanEmail,
-}).select("+password");
-
-    console.log("Doctor found:", Boolean(doctor));
-console.log("Doctor ID:", doctor?._id);
-console.log("Doctor email:", doctor?.email);
-console.log("Password exists:", Boolean(doctor?.password));
-console.log("Password value:", doctor?.password);
-
-    if (!doctor) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // ==========================================
-    // CHECK ACCOUNT STATUS
-    // ==========================================
-    if (!doctor.status) {
-      return res.status(403).json({
-        success: false,
-        message: "Doctor account is inactive",
-      });
-    }
-
-    // ==========================================
-    // CHECK PASSWORD EXISTS
-    // ==========================================
-    if (
-      !doctor.password ||
-      doctor.password.trim() === ""
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Password is not created yet. Please complete Create Password first.",
-      });
-    }
-
-    // ==========================================
-    // COMPARE PASSWORD
-    // ==========================================
-    const isPasswordMatch = await bcrypt.compare(
-      String(password),
-      doctor.password
-    );
-
-    if (!isPasswordMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // ==========================================
     // CHECK JWT SECRET
     // ==========================================
     if (!process.env.JWT_SECRET) {
@@ -1007,12 +946,66 @@ console.log("Password value:", doctor?.password);
     }
 
     // ==========================================
+    // FIND DOCTOR FROM USER COLLECTION
+    // ==========================================
+    const user = await User.findOne({
+      email: cleanEmail,
+      role: "doctor",
+    }).select("+password");
+
+    console.log("Doctor found:", Boolean(user));
+    console.log("Doctor ID:", user?._id);
+    console.log("Doctor email:", user?.email);
+    console.log("Doctor role:", user?.role);
+    console.log("Password exists:", Boolean(user?.password));
+
+    // ==========================================
+    // CHECK DOCTOR EXISTS
+    // ==========================================
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // ==========================================
+    // CHECK ACCOUNT STATUS
+    // ==========================================
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Doctor account is inactive",
+      });
+    }
+
+    // ==========================================
+    // COMPARE PASSWORD
+    // ==========================================
+    const isPasswordMatch = user.password
+      ? await bcrypt.compare(
+          String(password),
+          user.password
+        )
+      : false;
+
+    // ==========================================
+    // INVALID PASSWORD
+    // ==========================================
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // ==========================================
     // CREATE JWT
     // ==========================================
     const token = jwt.sign(
       {
-        id: doctor._id.toString(),
-        email: doctor.email,
+        id: user._id.toString(),
+        email: user.email,
         role: "doctor",
       },
       process.env.JWT_SECRET,
@@ -1025,15 +1018,15 @@ console.log("Password value:", doctor?.password);
     // SAVE TOKEN IN HTTP-ONLY COOKIE
     // ==========================================
     res.cookie("doctorToken", token, {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite:
-    process.env.NODE_ENV === "production"
-      ? "none"
-      : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: "/",
-});
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? "none"
+          : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
 
     console.log("Doctor token cookie created");
 
@@ -1045,13 +1038,11 @@ console.log("Password value:", doctor?.password);
       message: "Doctor login successful",
 
       doctor: {
-        id: doctor._id,
-        firstName: doctor.firstName,
-        lastName: doctor.lastName,
-        email: doctor.email,
-        username: doctor.username || "",
-        profileImage: doctor.profileImage || "",
+        id: user._id,
+        name: user.name || "",
+        email: user.email,
         role: "doctor",
+        profileImage: user.profileImage || "",
       },
     });
   } catch (error) {
@@ -1504,14 +1495,16 @@ const forgotDoctorPassword = async (req, res) => {
     }
 
     // -----------------------------------------------
-    // Find doctor
+    // Find doctor in USER collection
+    // User = authentication / password
     // -----------------------------------------------
 
-    const doctor = await Doctor.findOne({
+    const user = await User.findOne({
       email: cleanEmail,
-    });
+      role: "doctor",
+    }).select("+password");
 
-    if (!doctor) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: "No doctor account found with this email",
@@ -1519,10 +1512,10 @@ const forgotDoctorPassword = async (req, res) => {
     }
 
     // -----------------------------------------------
-    // Check doctor status
+    // Check doctor account status
     // -----------------------------------------------
 
-    if (!doctor.status) {
+    if (!user.isActive) {
       return res.status(403).json({
         success: false,
         message: "Doctor account is inactive",
@@ -1531,9 +1524,10 @@ const forgotDoctorPassword = async (req, res) => {
 
     // -----------------------------------------------
     // Check credentials
+    // Password is stored in USER collection
     // -----------------------------------------------
 
-    if (!doctor.password) {
+    if (!user.password) {
       return res.status(400).json({
         success: false,
         message:
@@ -1557,7 +1551,7 @@ const forgotDoctorPassword = async (req, res) => {
     });
 
     // -----------------------------------------------
-    // Save OTP
+    // Save new OTP
     // -----------------------------------------------
 
     await DoctorOtp.create({
@@ -1568,7 +1562,7 @@ const forgotDoctorPassword = async (req, res) => {
     });
 
     // -----------------------------------------------
-    // Send SAME OTP to email
+    // Send OTP to doctor email
     // -----------------------------------------------
 
     await sendOtpEmail(cleanEmail, otp);
@@ -1586,16 +1580,17 @@ const forgotDoctorPassword = async (req, res) => {
       console.log("========================================");
     }
 
+    // -----------------------------------------------
+    // Success response
+    // -----------------------------------------------
+
     return res.status(200).json({
       success: true,
       message: "Password reset OTP sent successfully",
       expiresIn: OTP_EXPIRY_MINUTES * 60,
     });
   } catch (error) {
-    console.error(
-      "Forgot doctor password error:",
-      error
-    );
+    console.error("Forgot doctor password error:", error);
 
     return res.status(500).json({
       success: false,
@@ -1603,8 +1598,6 @@ const forgotDoctorPassword = async (req, res) => {
     });
   }
 };
-
-
 // =====================================================
 // FORGOT PASSWORD - VERIFY OTP
 // =====================================================

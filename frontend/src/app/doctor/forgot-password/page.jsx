@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import { useState } from "react";
@@ -13,7 +14,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 
-import { toast } from "react-toastify"
+import { toast } from "react-toastify";
 import { forgotDoctorPassword } from "@/app/components/utils/Api-call/doctor-auth-api";
 
 export default function DoctorForgotPasswordPage() {
@@ -27,9 +28,7 @@ export default function DoctorForgotPasswordPage() {
   // =====================================================
 
   const validateEmail = (value) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    return emailRegex.test(value);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   };
 
   // =====================================================
@@ -41,15 +40,10 @@ export default function DoctorForgotPasswordPage() {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Clear previous toast/input state if needed
     if (!cleanEmail) {
       toast.error("Please enter your registered email address.");
       return;
     }
-
-    // =================================================
-    // VALIDATE EMAIL
-    // =================================================
 
     if (!validateEmail(cleanEmail)) {
       toast.error("Please enter a valid email address.");
@@ -59,81 +53,44 @@ export default function DoctorForgotPasswordPage() {
     try {
       setLoading(true);
 
-      // =================================================
-      // SEND OTP API
-      // =================================================
-
-      const result = await forgotDoctorPassword(cleanEmail);
-
-      // =================================================
-      // API ERROR
-      // =================================================
+      // Send forgot-password OTP
+      const result = await forgotDoctorPassword({
+        email: cleanEmail,
+      });
 
       if (!result?.success) {
         toast.error(
-          result?.message ||
-            "Unable to send password reset OTP."
+          result?.message || "Unable to send password reset OTP."
         );
         return;
       }
 
       // =================================================
-      // STORE COMMON OTP EMAIL
+      // SAVE OTP FLOW DATA
       // =================================================
 
-      sessionStorage.setItem(
-        "doctorOtpEmail",
-        cleanEmail
-      );
+      sessionStorage.setItem("doctorOtpEmail", cleanEmail);
+      sessionStorage.setItem("doctorOtpPurpose", "reset");
 
-      // =================================================
-      // STORE OTP PURPOSE
-      // =================================================
-      // reset = forgot password flow
-
-      sessionStorage.setItem(
-        "doctorOtpPurpose",
-        "reset"
-      );
-
-      // =================================================
-      // STORE OTP EXPIRY
-      // =================================================
-
-      const expiresIn =
-        Number(result?.expiresIn) || 300;
+      const expiresIn = Number(result?.expiresIn) || 300;
 
       sessionStorage.setItem(
         "doctorOtpExpiresAt",
-        String(
-          Date.now() + expiresIn * 1000
-        )
+        String(Date.now() + expiresIn * 1000)
       );
 
       // =================================================
-      // SUCCESS TOAST
+      // SUCCESS
       // =================================================
 
       toast.success(
-        "OTP has been sent to your registered email."
+        result?.message ||
+          "OTP has been sent to your registered email."
       );
 
-      // =================================================
-      // REDIRECT TO COMMON OTP PAGE
-      // =================================================
-
-      setTimeout(() => {
-        router.push("/doctor/verify-otp");
-      }, 700);
+      router.push("/doctor/verify-otp");
     } catch (error) {
-      console.error(
-        "Forgot password error:",
-        error
-      );
-
-      // =================================================
-      // ERROR TOAST
-      // =================================================
+      console.error("Forgot password error:", error);
 
       toast.error(
         error?.response?.data?.message ||
@@ -144,10 +101,6 @@ export default function DoctorForgotPasswordPage() {
       setLoading(false);
     }
   };
-
-  // =====================================================
-  // UI
-  // =====================================================
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -163,10 +116,6 @@ export default function DoctorForgotPasswordPage() {
 
           <div className="relative z-10 flex w-full flex-col justify-between p-12 xl:p-16">
 
-            {/* =================================================
-                LOGO
-            ================================================= */}
-
             <div>
               <Image
                 src="/logo/yash-hospital-logo.png"
@@ -177,10 +126,6 @@ export default function DoctorForgotPasswordPage() {
                 className="h-auto w-auto max-w-[190px] object-contain"
               />
             </div>
-
-            {/* =================================================
-                MAIN CONTENT
-            ================================================= */}
 
             <div className="max-w-xl text-white">
 
@@ -196,19 +141,14 @@ export default function DoctorForgotPasswordPage() {
               </h1>
 
               <p className="mt-5 max-w-lg text-base leading-7 text-blue-100 xl:text-lg">
-                We will send a secure verification
-                code to your registered email address
-                so you can create a new password.
+                We will send a secure verification code
+                to your registered email address so you
+                can create a new password.
               </p>
-
-              {/* =================================================
-                  SECURITY POINTS
-              ================================================= */}
 
               <div className="mt-8 space-y-4">
 
                 <div className="flex items-center gap-3">
-
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
                     <ShieldCheck size={18} />
                   </div>
@@ -216,11 +156,9 @@ export default function DoctorForgotPasswordPage() {
                   <span className="text-sm text-blue-50">
                     Secure email verification
                   </span>
-
                 </div>
 
                 <div className="flex items-center gap-3">
-
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
                     <LockKeyhole size={18} />
                   </div>
@@ -228,15 +166,10 @@ export default function DoctorForgotPasswordPage() {
                   <span className="text-sm text-blue-50">
                     Protected password reset
                   </span>
-
                 </div>
 
               </div>
             </div>
-
-            {/* =================================================
-                FOOTER
-            ================================================= */}
 
             <p className="text-sm text-blue-100">
               © {new Date().getFullYear()} Yash Hospital.
@@ -254,12 +187,9 @@ export default function DoctorForgotPasswordPage() {
 
           <div className="w-full max-w-md">
 
-            {/* =================================================
-                MOBILE LOGO
-            ================================================= */}
+            {/* MOBILE LOGO */}
 
             <div className="mb-10 flex justify-center lg:hidden">
-
               <Image
                 src="/logo/yash-hospital-logo.png"
                 alt="Yash Hospital"
@@ -268,12 +198,9 @@ export default function DoctorForgotPasswordPage() {
                 priority
                 className="h-auto w-auto max-w-[180px] object-contain"
               />
-
             </div>
 
-            {/* =================================================
-                BACK TO LOGIN
-            ================================================= */}
+            {/* BACK TO LOGIN */}
 
             <Link
               href="/doctor/login"
@@ -283,19 +210,15 @@ export default function DoctorForgotPasswordPage() {
               Back to Doctor Login
             </Link>
 
-            {/* =================================================
-                HEADING
-            ================================================= */}
+            {/* HEADING */}
 
             <div className="mb-8">
 
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-
                 <LockKeyhole
                   size={23}
                   strokeWidth={1.8}
                 />
-
               </div>
 
               <h2 className="text-3xl font-bold tracking-tight text-slate-900">
@@ -310,18 +233,14 @@ export default function DoctorForgotPasswordPage() {
 
             </div>
 
-            {/* =================================================
-                FORM
-            ================================================= */}
+            {/* FORM */}
 
             <form
               onSubmit={handleSubmit}
               className="space-y-6"
             >
 
-              {/* =================================================
-                  EMAIL
-              ================================================= */}
+              {/* EMAIL */}
 
               <div>
 
@@ -341,11 +260,10 @@ export default function DoctorForgotPasswordPage() {
 
                   <input
                     id="email"
+                    name="email"
                     type="email"
                     value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                    }}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="doctor@example.com"
                     autoComplete="email"
                     disabled={loading}
@@ -361,47 +279,36 @@ export default function DoctorForgotPasswordPage() {
 
               </div>
 
-              {/* =================================================
-                  SUBMIT BUTTON
-              ================================================= */}
+              {/* SUBMIT BUTTON */}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
-
                 {loading ? (
                   <>
                     <Loader2
                       size={18}
                       className="animate-spin"
                     />
-
                     Sending verification code...
                   </>
                 ) : (
-                  <>
-                    Send Verification Code
-                  </>
+                  "Send Verification Code"
                 )}
-
               </button>
 
             </form>
 
-            {/* =================================================
-                SECURITY INFO
-            ================================================= */}
+            {/* SECURITY INFO */}
 
             <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
               <div className="flex gap-3">
 
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-
                   <ShieldCheck size={18} />
-
                 </div>
 
                 <div>
@@ -422,9 +329,7 @@ export default function DoctorForgotPasswordPage() {
 
             </div>
 
-            {/* =================================================
-                HELP
-            ================================================= */}
+            {/* HELP */}
 
             <p className="mt-6 text-center text-xs text-slate-400">
               Having trouble accessing your email?
@@ -432,10 +337,10 @@ export default function DoctorForgotPasswordPage() {
             </p>
 
           </div>
-
         </section>
 
       </div>
     </main>
   );
 }
+ 

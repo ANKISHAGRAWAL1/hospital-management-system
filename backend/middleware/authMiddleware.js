@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const User = require("../models/User");
+const User = require("../models/user");
 const Doctor = require("../models/Doctor");
 
 // ==========================================
@@ -18,8 +18,14 @@ const protect = (requiredRole = null) => {
 
       if (requiredRole === "admin") {
         token = req.cookies?.adminToken || null;
-      } else if (requiredRole === "doctor") {
+      }
+
+      if (requiredRole === "doctor") {
         token = req.cookies?.doctorToken || null;
+      }
+
+      if (requiredRole === "patient") {
+        token = req.cookies?.token || null;
       }
 
       // ==========================================
@@ -27,10 +33,15 @@ const protect = (requiredRole = null) => {
       // ==========================================
 
       if (!token) {
-        const authHeader = req.headers.authorization;
+        const authHeader =
+          req.headers.authorization;
 
-        if (authHeader?.startsWith("Bearer ")) {
-          token = authHeader.split(" ")[1];
+        if (
+          authHeader &&
+          authHeader.startsWith("Bearer ")
+        ) {
+          token =
+            authHeader.split(" ")[1];
         }
       }
 
@@ -41,7 +52,8 @@ const protect = (requiredRole = null) => {
       if (!token) {
         return res.status(401).json({
           success: false,
-          message: "Not authorized. Token is missing.",
+          message:
+            "Not authorized. Token is missing.",
         });
       }
 
@@ -50,11 +62,14 @@ const protect = (requiredRole = null) => {
       // ==========================================
 
       if (!process.env.JWT_SECRET) {
-        console.error("JWT_SECRET is missing");
+        console.error(
+          "JWT_SECRET is missing"
+        );
 
         return res.status(500).json({
           success: false,
-          message: "Server configuration error",
+          message:
+            "Server configuration error",
         });
       }
 
@@ -68,13 +83,14 @@ const protect = (requiredRole = null) => {
       );
 
       // ==========================================
-      // 6. CHECK USER ID
+      // 6. CHECK TOKEN PAYLOAD
       // ==========================================
 
       if (!decoded?.id) {
         return res.status(401).json({
           success: false,
-          message: "Invalid token payload.",
+          message:
+            "Invalid token payload.",
         });
       }
 
@@ -98,13 +114,16 @@ const protect = (requiredRole = null) => {
       // ==========================================
 
       if (decoded.role === "admin") {
-        const admin = await User.findById(decoded.id)
-          .select("-password");
+        const admin =
+          await User.findById(
+            decoded.id
+          ).select("-password");
 
         if (!admin) {
           return res.status(401).json({
             success: false,
-            message: "Admin not found.",
+            message:
+              "Admin not found.",
           });
         }
 
@@ -116,14 +135,16 @@ const protect = (requiredRole = null) => {
           });
         }
 
-        if (!admin.isActive) {
+        if (admin.isActive === false) {
           return res.status(403).json({
             success: false,
-            message: "Your account is inactive.",
+            message:
+              "Your account is inactive.",
           });
         }
 
         req.user = admin;
+        req.userId = admin._id;
         req.userRole = "admin";
 
         return next();
@@ -134,40 +155,87 @@ const protect = (requiredRole = null) => {
       // ==========================================
 
       if (decoded.role === "doctor") {
-        const doctor = await Doctor.findById(decoded.id);
+        const doctor =
+          await Doctor.findById(
+            decoded.id
+          );
 
         if (!doctor) {
           return res.status(401).json({
             success: false,
-            message: "Doctor not found.",
+            message:
+              "Doctor not found.",
           });
         }
 
-        if (!doctor.status) {
+        if (doctor.status === false) {
           return res.status(403).json({
             success: false,
-            message: "Doctor account is inactive.",
+            message:
+              "Doctor account is inactive.",
           });
         }
 
         req.user = doctor;
+        req.userId = doctor._id;
         req.userRole = "doctor";
 
         return next();
       }
 
       // ==========================================
-      // 10. INVALID ROLE
+      // 10. PATIENT
+      // ==========================================
+
+      if (decoded.role === "patient") {
+        const patient =
+          await User.findById(
+            decoded.id
+          ).select("-password");
+
+        if (!patient) {
+          return res.status(401).json({
+            success: false,
+            message:
+              "Patient not found.",
+          });
+        }
+
+        if (patient.role !== "patient") {
+          return res.status(403).json({
+            success: false,
+            message:
+              "You are not authorized to access this resource.",
+          });
+        }
+
+        if (patient.isActive === false) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Your account is inactive. Please contact hospital.",
+          });
+        }
+
+        req.user = patient;
+        req.userId = patient._id;
+        req.userRole = "patient";
+
+        return next();
+      }
+
+      // ==========================================
+      // 11. INVALID ROLE
       // ==========================================
 
       return res.status(403).json({
         success: false,
-        message: "Invalid user role.",
+        message:
+          "Invalid user role.",
       });
-
     } catch (error) {
       console.error(
-        "Auth Middleware Error:",
+        "AUTH MIDDLEWARE ERROR:",
         error.message
       );
 
@@ -175,7 +243,10 @@ const protect = (requiredRole = null) => {
       // TOKEN EXPIRED
       // ==========================================
 
-      if (error.name === "TokenExpiredError") {
+      if (
+        error.name ===
+        "TokenExpiredError"
+      ) {
         return res.status(401).json({
           success: false,
           message:
@@ -187,10 +258,14 @@ const protect = (requiredRole = null) => {
       // INVALID TOKEN
       // ==========================================
 
-      if (error.name === "JsonWebTokenError") {
+      if (
+        error.name ===
+        "JsonWebTokenError"
+      ) {
         return res.status(401).json({
           success: false,
-          message: "Invalid token.",
+          message:
+            "Invalid token.",
         });
       }
 
@@ -198,10 +273,14 @@ const protect = (requiredRole = null) => {
       // INVALID OBJECT ID
       // ==========================================
 
-      if (error.name === "CastError") {
+      if (
+        error.name ===
+        "CastError"
+      ) {
         return res.status(401).json({
           success: false,
-          message: "Invalid user.",
+          message:
+            "Invalid user.",
         });
       }
 
@@ -211,7 +290,8 @@ const protect = (requiredRole = null) => {
 
       return res.status(500).json({
         success: false,
-        message: "Authentication failed.",
+        message:
+          "Authentication failed.",
       });
     }
   };
@@ -226,11 +306,16 @@ const authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message:
+          "Authentication required.",
       });
     }
 
-    if (!roles.includes(req.userRole)) {
+    if (
+      !roles.includes(
+        req.userRole
+      )
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -241,6 +326,10 @@ const authorize = (...roles) => {
     next();
   };
 };
+
+// ==========================================
+// EXPORT
+// ==========================================
 
 module.exports = {
   protect,

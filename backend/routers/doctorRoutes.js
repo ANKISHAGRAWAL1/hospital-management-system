@@ -1,3 +1,4 @@
+ 
 const express = require("express");
 
 const {
@@ -46,12 +47,11 @@ router.get("/:id", getDoctorById);
 // ==========================================
 // CREATE DOCTOR
 // POST /api/doctors
+// TEMPORARILY WITHOUT AUTHENTICATION
 // ==========================================
 
 router.post(
   "/",
-  protect("admin"),
-  authorize("admin"),
   upload.single("profile"),
   createDoctor
 );
@@ -69,3 +69,4 @@ router.delete(
 );
 
 module.exports = router;
+ 

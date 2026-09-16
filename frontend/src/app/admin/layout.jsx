@@ -14,88 +14,169 @@ export default function AdminLayout({ children }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [admin, setAdmin] = useState(null);
+
+  // =====================================================
+  // PUBLIC ADMIN PAGES
+  // =====================================================
+
+  const publicPages = [
+    "/admin/login",
+    "/admin/doctor/login",
+  ];
+
+  // =====================================================
+  // CHECK PUBLIC PAGE
+  // =====================================================
+
+  const isPublicPage = publicPages.some(
+    (route) =>
+      pathname === route ||
+      pathname.startsWith(`${route}/`)
+  );
+
+  // =====================================================
+  // ADMIN AUTHENTICATION
+  // =====================================================
 
   useEffect(() => {
-    // ==========================================
-    // LOGIN PAGE
-    // ==========================================
-    if (pathname === "/admin/login") {
+    let mounted = true;
+
+    // ---------------------------------------------------
+    // PUBLIC PAGE
+    // ---------------------------------------------------
+
+    if (isPublicPage) {
       setCheckingAuth(false);
-      return;
+      setAdmin(null);
+
+      return () => {
+        mounted = false;
+      };
     }
 
-    // ==========================================
-    // CHECK ADMIN AUTHENTICATION
-    // ==========================================
+    // ---------------------------------------------------
+    // PROTECTED ADMIN PAGE
+    // ---------------------------------------------------
+
     const checkAdminAuth = async () => {
       try {
-        console.log("Checking admin authentication...");
+        setCheckingAuth(true);
+
+        console.log(
+          "========== CHECKING ADMIN AUTH =========="
+        );
 
         const response = await getAdminMe();
 
-        console.log("ADMIN ME RESPONSE:", response);
+        console.log(
+          "ADMIN AUTH RESPONSE:",
+          response
+        );
 
-        // ==========================================
-        // AUTHENTICATION FAILED
-        // ==========================================
-        if (!response?.success) {
-          throw new Error(
-            response?.message || "Authentication failed"
+        if (!mounted) return;
+
+        // ------------------------------------------------
+        // AUTH FAILED
+        // ------------------------------------------------
+
+        if (
+          !response?.success ||
+          !response?.admin
+        ) {
+          console.log(
+            "Admin authentication failed"
           );
+
+          setAdmin(null);
+          setCheckingAuth(false);
+
+          router.replace("/admin/login");
+
+          return;
         }
 
-        // ==========================================
-        // ADMIN ROLE CHECK
-        // ==========================================
-        if (response?.admin?.role !== "admin") {
-          throw new Error("Unauthorized access");
+        // ------------------------------------------------
+        // ROLE CHECK
+        // ------------------------------------------------
+
+        if (
+          response.admin.role !== "admin"
+        ) {
+          console.log(
+            "Unauthorized admin access"
+          );
+
+          setAdmin(null);
+          setCheckingAuth(false);
+
+          router.replace("/admin/login");
+
+          return;
         }
 
-        // ==========================================
-        // ADMIN AUTHENTICATED
-        // ==========================================
-        console.log("Admin authenticated successfully");
+        // ------------------------------------------------
+        // AUTH SUCCESS
+        // ------------------------------------------------
 
+        console.log(
+          "Admin authenticated successfully"
+        );
+
+        setAdmin(response.admin);
         setCheckingAuth(false);
+
       } catch (error) {
         console.error(
-          "Admin authentication error:",
+          "ADMIN AUTH ERROR:",
           error
         );
 
+        if (!mounted) return;
+
+        setAdmin(null);
         setCheckingAuth(false);
 
-        // ==========================================
-        // REDIRECT TO LOGIN
-        // ==========================================
         router.replace("/admin/login");
       }
     };
 
     checkAdminAuth();
-  }, [pathname, router]);
 
-  // ==========================================
-  // LOGIN PAGE
-  // ==========================================
-  if (pathname === "/admin/login") {
-    return children;
+    return () => {
+      mounted = false;
+    };
+  }, [pathname, isPublicPage, router]);
+
+  // =====================================================
+  // PUBLIC PAGE
+  // =====================================================
+
+  if (isPublicPage) {
+    return <>{children}</>;
   }
 
-  // ==========================================
-  // AUTH CHECK LOADING
-  // ==========================================
+  // =====================================================
+  // AUTH CHECKING
+  // =====================================================
+
   if (checkingAuth) {
     return (
-      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
         <div className="flex flex-col items-center">
 
-          {/* Loader */}
-          <div className="w-10 h-10 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+          <div className="relative h-11 w-11">
+            <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
 
-          {/* Loading Text */}
-          <p className="mt-4 text-sm text-[#66736b]">
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#0F766E]" />
+          </div>
+
+          <p className="mt-4 text-sm font-medium text-slate-600">
             Checking authentication...
+          </p>
+
+          <p className="mt-1 text-xs text-slate-400">
+            Please wait
           </p>
 
         </div>
@@ -103,23 +184,26 @@ export default function AdminLayout({ children }) {
     );
   }
 
-  // ==========================================
-  // AUTHENTICATED ADMIN LAYOUT
-  // ==========================================
-  return (
-    <div className="min-h-screen bg-[#f5f7f8] text-[#17211b]">
+  // =====================================================
+  // PROTECTED ADMIN PORTAL
+  // =====================================================
 
-      {/* =====================================
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-[#17211B]">
+
+      {/* =================================================
           SIDEBAR
-      ===================================== */}
+      ================================================= */}
+
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}
       />
 
-      {/* =====================================
-          MAIN CONTENT AREA
-      ===================================== */}
+      {/* =================================================
+          MAIN AREA
+      ================================================= */}
+
       <div
         className={`
           min-h-screen
@@ -129,14 +213,16 @@ export default function AdminLayout({ children }) {
         `}
       >
 
-        {/* ===================================
+        {/* =================================================
             HEADER
-        =================================== */}
-        <Header />
+        ================================================= */}
 
-        {/* ===================================
-            PAGE CONTENT
-        =================================== */}
+        <Header admin={admin} />
+
+        {/* =================================================
+            CONTENT
+        ================================================= */}
+
         <main className="p-6">
           {children}
         </main>

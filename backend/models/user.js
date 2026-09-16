@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    dateOfBirth: {
+      type: Date,
+    },
+
     password: {
       type: String,
       required: true,
@@ -29,7 +33,12 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["admin", "doctor", "receptionist", "patient"],
+      enum: [
+        "admin",
+        "doctor",
+        "receptionist",
+        "patient",
+      ],
       default: "patient",
     },
 
@@ -37,12 +46,40 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // ==================================================
+    // PATIENT DEPENDENT
+    // ==================================================
+
+    parentPatient: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    isDependent: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ==================================================
+    // PATIENT ADDED BY
+    // ==================================================
+
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-const User = mongoose.model("User", userSchema);
+// Prevent OverwriteModelError during reload/watch
+const User =
+  mongoose.models.User ||
+  mongoose.model("User", userSchema);
 
 module.exports = User;
