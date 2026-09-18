@@ -1,4 +1,3 @@
- 
 const express = require("express");
 
 const {
@@ -18,17 +17,41 @@ const upload = require("../middleware/upload");
 
 const router = express.Router();
 
-// ==========================================
+// =====================================================
 // GET ALL DOCTORS
 // GET /api/doctors
-// ==========================================
+// =====================================================
 
-router.get("/", getAllDoctors);
+router.get(
+  "/",
+  getAllDoctors
+);
 
-// ==========================================
+// =====================================================
+// GET DOCTOR BY ID
+// GET /api/doctors/:id
+// =====================================================
+
+router.get(
+  "/:id",
+  getDoctorById
+);
+
+// =====================================================
+// CREATE DOCTOR
+// POST /api/doctors
+// =====================================================
+
+router.post(
+  "/",
+  upload.single("profile"),
+  createDoctor
+);
+
+// =====================================================
 // UPDATE DOCTOR STATUS
 // PATCH /api/doctors/:id/status
-// ==========================================
+// =====================================================
 
 router.patch(
   "/:id/status",
@@ -37,29 +60,10 @@ router.patch(
   updateDoctorStatus
 );
 
-// ==========================================
-// GET DOCTOR BY ID
-// GET /api/doctors/:id
-// ==========================================
-
-router.get("/:id", getDoctorById);
-
-// ==========================================
-// CREATE DOCTOR
-// POST /api/doctors
-// TEMPORARILY WITHOUT AUTHENTICATION
-// ==========================================
-
-router.post(
-  "/",
-  upload.single("profile"),
-  createDoctor
-);
-
-// ==========================================
+// =====================================================
 // DELETE DOCTOR
 // DELETE /api/doctors/:id
-// ==========================================
+// =====================================================
 
 router.delete(
   "/:id",
@@ -69,4 +73,3 @@ router.delete(
 );
 
 module.exports = router;
- 

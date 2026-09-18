@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 
 const Doctor = require("../models/Doctor");
 const Departments = require("../models/Departments");
@@ -18,6 +19,10 @@ const {
   sendDoctorCredentialsEmail,
 } = require("../serivices/emailService");
 
+// =====================================================
+// TIME HELPERS
+// =====================================================
+
 const isValidTime = (time) => {
   if (typeof time !== "string") {
     return false;
@@ -29,6 +34,10 @@ const isValidTime = (time) => {
 };
 
 const timeToMinutes = (time) => {
+  if (!isValidTime(time)) {
+    return null;
+  }
+
   const [hours, minutes] = time
     .trim()
     .split(":")
@@ -37,8 +46,174 @@ const timeToMinutes = (time) => {
   return hours * 60 + minutes;
 };
 
+const minutesToTime = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(
+    mins
+  ).padStart(2, "0")}`;
+};
+
+// =====================================================
+// GENERATE APPOINTMENT SLOTS
+// =====================================================
+
+const generateAppointmentSlots = (
+  startTime,
+  endTime,
+  duration
+) => {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+
+  if (
+    start === null ||
+    end === null ||
+    !Number.isFinite(duration) ||
+    duration <= 0 ||
+    end <= start
+  ) {
+    return [];
+  }
+
+  const slots = [];
+
+  let current = start;
+
+  while (current + duration <= end) {
+    const slotStart = minutesToTime(current);
+    const slotEnd = minutesToTime(
+      current + duration
+    );
+
+    slots.push({
+      startTime: slotStart,
+      endTime: slotEnd,
+    });
+
+    current += duration;
+  }
+
+  return slots;
+};
+
+// =====================================================
+// NORMALIZE CONSULTATION SLOTS
+// =====================================================
+
+const normalizeConsultationSlots = (
+  slots,
+  duration
+) => {
+  if (!Array.isArray(slots)) {
+    return [];
+  }
+
+  const normalizedSlots = [];
+
+  for (const slot of slots) {
+    if (
+      !slot ||
+      !slot.startTime ||
+      !slot.endTime
+    ) {
+      continue;
+    }
+
+    const startTime = String(
+      slot.startTime
+    ).trim();
+
+    const endTime = String(
+      slot.endTime
+    ).trim();
+
+    if (
+      !isValidTime(startTime) ||
+      !isValidTime(endTime)
+    ) {
+      continue;
+    }
+
+    const start = timeToMinutes(
+      startTime
+    );
+
+    const end = timeToMinutes(
+      endTime
+    );
+
+    if (end <= start) {
+      continue;
+    }
+
+    const totalMinutes = end - start;
+
+    if (
+      totalMinutes % duration !== 0
+    ) {
+      continue;
+    }
+
+    const generatedSlots =
+      generateAppointmentSlots(
+        startTime,
+        endTime,
+        duration
+      );
+
+    normalizedSlots.push(
+      ...generatedSlots
+    );
+  }
+
+  return normalizedSlots;
+};
+
+// =====================================================
+// REMOVE DUPLICATE SLOTS
+// =====================================================
+
+const removeDuplicateSlots = (
+  slots
+) => {
+  const seen = new Set();
+
+  return slots.filter((slot) => {
+    const key = `${slot.startTime}-${slot.endTime}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+
+    return true;
+  });
+};
+
+// =====================================================
+// SORT SLOTS
+// =====================================================
+
+const sortSlots = (slots) => {
+  return [...slots].sort(
+    (a, b) =>
+      timeToMinutes(a.startTime) -
+      timeToMinutes(b.startTime)
+  );
+};
+
+// =====================================================
+// CHECK OVERLAPPING SLOTS
+// =====================================================
+
 const hasOverlappingSlots = (slots) => {
-  if (!Array.isArray(slots) || slots.length < 2) {
+  if (
+    !Array.isArray(slots) ||
+    slots.length < 2
+  ) {
     return false;
   }
 
@@ -53,12 +228,19 @@ const hasOverlappingSlots = (slots) => {
     i < sortedSlots.length;
     i++
   ) {
-    const previousSlot = sortedSlots[i - 1];
-    const currentSlot = sortedSlots[i];
+    const previousSlot =
+      sortedSlots[i - 1];
+
+    const currentSlot =
+      sortedSlots[i];
 
     if (
-      timeToMinutes(currentSlot.startTime) <
-      timeToMinutes(previousSlot.endTime)
+      timeToMinutes(
+        currentSlot.startTime
+      ) <
+      timeToMinutes(
+        previousSlot.endTime
+      )
     ) {
       return true;
     }
@@ -66,7 +248,468 @@ const hasOverlappingSlots = (slots) => {
 
   return false;
 };
- 
+
+// =====================================================
+// CHECK APPOINTMENT DURATION
+// =====================================================
+
+const isDurationValid = (
+  startTime,
+  endTime,
+  duration
+) => {
+  const start =
+    timeToMinutes(startTime);
+
+  const end =
+    timeToMinutes(endTime);
+
+  if (
+    start === null ||
+    end === null
+  ) {
+    return false;
+  }
+
+  const totalMinutes = end - start;
+
+  if (totalMinutes <= 0) {
+    return false;
+  }
+
+  return (
+    totalMinutes % duration === 0
+  );
+};
+
+// =====================================================
+// NORMALIZE FULL AVAILABILITY
+// =====================================================
+
+const normalizeAvailability = (
+  availability,
+  duration
+) => {
+  if (
+    !Array.isArray(availability)
+  ) {
+    return [];
+  }
+
+  return availability.map(
+    (dayAvailability) => {
+      if (
+        !dayAvailability ||
+        typeof dayAvailability !==
+          "object"
+      ) {
+        return dayAvailability;
+      }
+
+      const result = {
+        ...dayAvailability,
+      };
+
+      if (
+        dayAvailability.hospital &&
+        dayAvailability.hospital.enabled ===
+          true
+      ) {
+        result.hospital = {
+          ...dayAvailability.hospital,
+          slots: sortSlots(
+            removeDuplicateSlots(
+              normalizeConsultationSlots(
+                dayAvailability.hospital
+                  .slots,
+                duration
+              )
+            )
+          ),
+        };
+      }
+
+      if (
+        dayAvailability.video &&
+        dayAvailability.video.enabled ===
+          true
+      ) {
+        result.video = {
+          ...dayAvailability.video,
+          slots: sortSlots(
+            removeDuplicateSlots(
+              normalizeConsultationSlots(
+                dayAvailability.video
+                  .slots,
+                duration
+              )
+            )
+          ),
+        };
+      }
+
+      return result;
+    }
+  );
+};
+
+// =====================================================
+// VALIDATE AND NORMALIZE AVAILABILITY
+// =====================================================
+
+const validateAndNormalizeAvailability =
+  (
+    parsedAvailability,
+    duration
+  ) => {
+    const validDays = [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ];
+
+    const usedDays = new Set();
+
+    if (
+      !Array.isArray(
+        parsedAvailability
+      )
+    ) {
+      throw new Error(
+        "Availability must be an array"
+      );
+    }
+
+    const normalizedAvailability =
+      [];
+
+    for (const dayAvailability of parsedAvailability) {
+      if (
+        !dayAvailability ||
+        typeof dayAvailability !==
+          "object"
+      ) {
+        throw new Error(
+          "Invalid availability data"
+        );
+      }
+
+      const {
+        day,
+        hospital,
+        video,
+      } = dayAvailability;
+
+      if (!validDays.includes(day)) {
+        throw new Error(
+          `Invalid day: ${day}`
+        );
+      }
+
+      if (usedDays.has(day)) {
+        throw new Error(
+          `${day} availability is added more than once`
+        );
+      }
+
+      usedDays.add(day);
+
+      const hospitalEnabled =
+        hospital &&
+        hospital.enabled === true;
+
+      const videoEnabled =
+        video &&
+        video.enabled === true;
+
+      if (
+        !hospitalEnabled &&
+        !videoEnabled
+      ) {
+        throw new Error(
+          `${day}: At least one consultation type must be enabled`
+        );
+      }
+
+      const normalizedDay = {
+        day,
+      };
+
+      // =================================================
+      // HOSPITAL
+      // =================================================
+
+      if (hospitalEnabled) {
+        if (
+          !Array.isArray(
+            hospital.slots
+          ) ||
+          hospital.slots.length === 0
+        ) {
+          throw new Error(
+            `${day}: Hospital timing is required`
+          );
+        }
+
+        for (const slot of hospital.slots) {
+          if (
+            !slot ||
+            !slot.startTime ||
+            !slot.endTime
+          ) {
+            throw new Error(
+              `${day}: Hospital start time and end time are required`
+            );
+          }
+
+          const startTime =
+            String(
+              slot.startTime
+            ).trim();
+
+          const endTime =
+            String(
+              slot.endTime
+            ).trim();
+
+          if (
+            !isValidTime(
+              startTime
+            ) ||
+            !isValidTime(endTime)
+          ) {
+            throw new Error(
+              `${day}: Invalid hospital timing format. Use HH:mm`
+            );
+          }
+
+          if (
+            timeToMinutes(
+              startTime
+            ) >=
+            timeToMinutes(
+              endTime
+            )
+          ) {
+            throw new Error(
+              `${day}: Hospital end time must be greater than start time`
+            );
+          }
+
+          if (
+            !isDurationValid(
+              startTime,
+              endTime,
+              duration
+            )
+          ) {
+            throw new Error(
+              `${day}: Hospital timing from ${startTime} to ${endTime} must be exactly divisible by the ${duration}-minute appointment duration`
+            );
+          }
+        }
+
+        const generatedHospitalSlots =
+          sortSlots(
+            removeDuplicateSlots(
+              normalizeConsultationSlots(
+                hospital.slots,
+                duration
+              )
+            )
+          );
+
+        if (
+          generatedHospitalSlots.length ===
+          0
+        ) {
+          throw new Error(
+            `${day}: No valid hospital appointment slots could be generated`
+          );
+        }
+
+        if (
+          hasOverlappingSlots(
+            generatedHospitalSlots
+          )
+        ) {
+          throw new Error(
+            `${day}: Hospital timings cannot overlap`
+          );
+        }
+
+        normalizedDay.hospital = {
+          ...hospital,
+          slots:
+            generatedHospitalSlots,
+        };
+      }
+
+      // =================================================
+      // VIDEO
+      // =================================================
+
+      if (videoEnabled) {
+        if (
+          !Array.isArray(
+            video.slots
+          ) ||
+          video.slots.length === 0
+        ) {
+          throw new Error(
+            `${day}: Video consultation timing is required`
+          );
+        }
+
+        for (const slot of video.slots) {
+          if (
+            !slot ||
+            !slot.startTime ||
+            !slot.endTime
+          ) {
+            throw new Error(
+              `${day}: Video start time and end time are required`
+            );
+          }
+
+          const startTime =
+            String(
+              slot.startTime
+            ).trim();
+
+          const endTime =
+            String(
+              slot.endTime
+            ).trim();
+
+          if (
+            !isValidTime(
+              startTime
+            ) ||
+            !isValidTime(endTime)
+          ) {
+            throw new Error(
+              `${day}: Invalid video timing format. Use HH:mm`
+            );
+          }
+
+          if (
+            timeToMinutes(
+              startTime
+            ) >=
+            timeToMinutes(
+              endTime
+            )
+          ) {
+            throw new Error(
+              `${day}: Video end time must be greater than start time`
+            );
+          }
+
+          if (
+            !isDurationValid(
+              startTime,
+              endTime,
+              duration
+            )
+          ) {
+            throw new Error(
+              `${day}: Video timing from ${startTime} to ${endTime} must be exactly divisible by the ${duration}-minute appointment duration`
+            );
+          }
+        }
+
+        const generatedVideoSlots =
+          sortSlots(
+            removeDuplicateSlots(
+              normalizeConsultationSlots(
+                video.slots,
+                duration
+              )
+            )
+          );
+
+        if (
+          generatedVideoSlots.length ===
+          0
+        ) {
+          throw new Error(
+            `${day}: No valid video appointment slots could be generated`
+          );
+        }
+
+        if (
+          hasOverlappingSlots(
+            generatedVideoSlots
+          )
+        ) {
+          throw new Error(
+            `${day}: Video timings cannot overlap`
+          );
+        }
+
+        normalizedDay.video = {
+          ...video,
+          slots:
+            generatedVideoSlots,
+        };
+      }
+
+      normalizedAvailability.push(
+        normalizedDay
+      );
+    }
+
+    return normalizedAvailability;
+  };
+
+// =====================================================
+// PREPARE DOCTOR RESPONSE
+// =====================================================
+
+const prepareDoctorResponse = (
+  doctor
+) => {
+  if (!doctor) {
+    return doctor;
+  }
+
+  const doctorObject =
+    typeof doctor.toObject ===
+    "function"
+      ? doctor.toObject()
+      : {
+          ...doctor,
+        };
+
+  const duration =
+    Number(
+      doctorObject.appointmentDuration
+    ) || 30;
+
+  if (
+    Array.isArray(
+      doctorObject.availability
+    )
+  ) {
+    doctorObject.availability =
+      normalizeAvailability(
+        doctorObject.availability,
+        duration
+      );
+  }
+
+  return doctorObject;
+};
+
+// =====================================================
+// CREATE DOCTOR
+// =====================================================
+
 const createDoctor = async (req, res) => {
   const session = await Doctor.startSession();
 
@@ -77,13 +720,10 @@ const createDoctor = async (req, res) => {
     session.startTransaction();
 
     // =================================================
-    // REQUEST BODY CHECK
+    // REQUEST VALIDATION
     // =================================================
 
-    if (
-      !req.body ||
-      Object.keys(req.body).length === 0
-    ) {
+    if (!req.body || Object.keys(req.body).length === 0) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -91,10 +731,6 @@ const createDoctor = async (req, res) => {
         "Doctor data is required"
       );
     }
-
-    // =================================================
-    // REQUEST DATA
-    // =================================================
 
     const {
       firstName,
@@ -121,10 +757,7 @@ const createDoctor = async (req, res) => {
     // REQUIRED FIELDS
     // =================================================
 
-    if (
-      !firstName ||
-      !String(firstName).trim()
-    ) {
+    if (!firstName || !String(firstName).trim()) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -133,10 +766,7 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    if (
-      !lastName ||
-      !String(lastName).trim()
-    ) {
+    if (!lastName || !String(lastName).trim()) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -145,10 +775,7 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    if (
-      !email ||
-      !String(email).trim()
-    ) {
+    if (!email || !String(email).trim()) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -157,10 +784,7 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    if (
-      !phone ||
-      !String(phone).trim()
-    ) {
+    if (!phone || !String(phone).trim()) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -214,10 +838,7 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    if (
-      !licenseNumber ||
-      !String(licenseNumber).trim()
-    ) {
+    if (!licenseNumber || !String(licenseNumber).trim()) {
       await session.abortTransaction();
 
       return sendBadrequest(
@@ -227,7 +848,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // NORMALIZE DATA
+    // CLEAN DATA
     // =================================================
 
     const cleanFirstName = String(firstName)
@@ -260,12 +881,48 @@ const createDoctor = async (req, res) => {
 
       return sendBadrequest(
         res,
-        "Please provide a valid email address"
+        "Please enter a valid email address"
       );
     }
 
     // =================================================
-    // PARSE SPECIALIZATION
+    // APPOINTMENT DURATION
+    // =================================================
+
+    const parsedAppointmentDuration =
+      appointmentDuration !== undefined &&
+      appointmentDuration !== ""
+        ? Number(appointmentDuration)
+        : 30;
+
+    if (
+      !Number.isFinite(
+        parsedAppointmentDuration
+      )
+    ) {
+      await session.abortTransaction();
+
+      return sendBadrequest(
+        res,
+        "Appointment duration must be a valid number"
+      );
+    }
+
+    if (
+      ![15, 30, 45, 60].includes(
+        parsedAppointmentDuration
+      )
+    ) {
+      await session.abortTransaction();
+
+      return sendBadrequest(
+        res,
+        "Appointment duration must be 15, 30, 45 or 60 minutes"
+      );
+    }
+
+    // =================================================
+    // SPECIALIZATION
     // =================================================
 
     let parsedSpecialization = [];
@@ -300,12 +957,9 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    parsedSpecialization =
-      parsedSpecialization
-        .map((item) =>
-          String(item).trim()
-        )
-        .filter(Boolean);
+    parsedSpecialization = parsedSpecialization
+      .map((item) => String(item).trim())
+      .filter(Boolean);
 
     if (
       parsedSpecialization.length === 0
@@ -319,7 +973,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // PARSE QUALIFICATION
+    // QUALIFICATION
     // =================================================
 
     let parsedQualification = [];
@@ -354,12 +1008,9 @@ const createDoctor = async (req, res) => {
       );
     }
 
-    parsedQualification =
-      parsedQualification
-        .map((item) =>
-          String(item).trim()
-        )
-        .filter(Boolean);
+    parsedQualification = parsedQualification
+      .map((item) => String(item).trim())
+      .filter(Boolean);
 
     if (
       parsedQualification.length === 0
@@ -373,7 +1024,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // CHECK EXISTING DOCTOR EMAIL
+    // EXISTING DOCTOR EMAIL
     // =================================================
 
     const existingDoctor =
@@ -391,7 +1042,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // CHECK EXISTING USER EMAIL
+    // EXISTING USER EMAIL
     // =================================================
 
     const existingUser =
@@ -409,12 +1060,13 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // CHECK DUPLICATE LICENSE
+    // DUPLICATE LICENSE
     // =================================================
 
     const existingLicense =
       await Doctor.findOne({
-        licenseNumber: cleanLicenseNumber,
+        licenseNumber:
+          cleanLicenseNumber,
       }).session(session);
 
     if (existingLicense) {
@@ -427,12 +1079,12 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // VALIDATE DEPARTMENT ID
+    // DEPARTMENT ID
     // =================================================
 
     if (
-      !/^[0-9a-fA-F]{24}$/.test(
-        String(department)
+      !mongoose.isValidObjectId(
+        department
       )
     ) {
       await session.abortTransaction();
@@ -444,7 +1096,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // CHECK DEPARTMENT
+    // DEPARTMENT
     // =================================================
 
     const existingDepartment =
@@ -461,8 +1113,19 @@ const createDoctor = async (req, res) => {
       );
     }
 
+    if (
+      existingDepartment.status === false
+    ) {
+      await session.abortTransaction();
+
+      return sendBadrequest(
+        res,
+        "Selected department is currently inactive"
+      );
+    }
+
     // =================================================
-    // PARSE AVAILABILITY
+    // AVAILABILITY PARSE
     // =================================================
 
     let parsedAvailability = [];
@@ -476,7 +1139,9 @@ const createDoctor = async (req, res) => {
       ) {
         try {
           parsedAvailability =
-            JSON.parse(availability);
+            JSON.parse(
+              availability
+            );
         } catch (error) {
           await session.abortTransaction();
 
@@ -500,266 +1165,29 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // VALID DAYS
-    // =================================================
-
-    const validDays = [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ];
-
-    const usedDays = new Set();
-
-    // =================================================
     // VALIDATE AVAILABILITY
     // =================================================
 
-    for (
-      const dayAvailability of
-      parsedAvailability
-    ) {
-      if (
-        !dayAvailability ||
-        typeof dayAvailability !== "object"
-      ) {
-        await session.abortTransaction();
+    let normalizedAvailability;
 
-        return sendBadrequest(
-          res,
-          "Invalid availability data"
+    try {
+      normalizedAvailability =
+        validateAndNormalizeAvailability(
+          parsedAvailability,
+          parsedAppointmentDuration
         );
-      }
+    } catch (availabilityError) {
+      await session.abortTransaction();
 
-      const {
-        day,
-        hospital,
-        video,
-      } = dayAvailability;
-
-      // =================================================
-      // DAY VALIDATION
-      // =================================================
-
-      if (!validDays.includes(day)) {
-        await session.abortTransaction();
-
-        return sendBadrequest(
-          res,
-          `Invalid day: ${day}`
-        );
-      }
-
-      // =================================================
-      // DUPLICATE DAY
-      // =================================================
-
-      if (usedDays.has(day)) {
-        await session.abortTransaction();
-
-        return sendBadrequest(
-          res,
-          `${day} availability is added more than once`
-        );
-      }
-
-      usedDays.add(day);
-
-      // =================================================
-      // CONSULTATION TYPES
-      // =================================================
-
-      const hospitalEnabled =
-        hospital &&
-        hospital.enabled === true;
-
-      const videoEnabled =
-        video &&
-        video.enabled === true;
-
-      if (
-        !hospitalEnabled &&
-        !videoEnabled
-      ) {
-        await session.abortTransaction();
-
-        return sendBadrequest(
-          res,
-          `${day}: At least one consultation type must be enabled`
-        );
-      }
-
-      // =================================================
-      // HOSPITAL TIMING
-      // =================================================
-
-      if (hospitalEnabled) {
-        if (
-          !Array.isArray(
-            hospital.slots
-          ) ||
-          hospital.slots.length === 0
-        ) {
-          await session.abortTransaction();
-
-          return sendBadrequest(
-            res,
-            `${day}: Hospital timing is required`
-          );
-        }
-
-        for (
-          const slot of hospital.slots
-        ) {
-          if (
-            !slot ||
-            !slot.startTime ||
-            !slot.endTime
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Hospital start time and end time are required`
-            );
-          }
-
-          if (
-            !isValidTime(
-              slot.startTime
-            ) ||
-            !isValidTime(
-              slot.endTime
-            )
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Invalid hospital timing format. Use HH:mm`
-            );
-          }
-
-          if (
-            timeToMinutes(
-              slot.startTime
-            ) >=
-            timeToMinutes(
-              slot.endTime
-            )
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Hospital end time must be greater than start time`
-            );
-          }
-        }
-
-        if (
-          hasOverlappingSlots(
-            hospital.slots
-          )
-        ) {
-          await session.abortTransaction();
-
-          return sendBadrequest(
-            res,
-            `${day}: Hospital timings cannot overlap`
-          );
-        }
-      }
-
-      // =================================================
-      // VIDEO TIMING
-      // =================================================
-
-      if (videoEnabled) {
-        if (
-          !Array.isArray(
-            video.slots
-          ) ||
-          video.slots.length === 0
-        ) {
-          await session.abortTransaction();
-
-          return sendBadrequest(
-            res,
-            `${day}: Video consultation timing is required`
-          );
-        }
-
-        for (
-          const slot of video.slots
-        ) {
-          if (
-            !slot ||
-            !slot.startTime ||
-            !slot.endTime
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Video start time and end time are required`
-            );
-          }
-
-          if (
-            !isValidTime(
-              slot.startTime
-            ) ||
-            !isValidTime(
-              slot.endTime
-            )
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Invalid video timing format. Use HH:mm`
-            );
-          }
-
-          if (
-            timeToMinutes(
-              slot.startTime
-            ) >=
-            timeToMinutes(
-              slot.endTime
-            )
-          ) {
-            await session.abortTransaction();
-
-            return sendBadrequest(
-              res,
-              `${day}: Video end time must be greater than start time`
-            );
-          }
-        }
-
-        if (
-          hasOverlappingSlots(
-            video.slots
-          )
-        ) {
-          await session.abortTransaction();
-
-          return sendBadrequest(
-            res,
-            `${day}: Video timings cannot overlap`
-          );
-        }
-      }
+      return sendBadrequest(
+        res,
+        availabilityError.message ||
+          "Invalid doctor availability"
+      );
     }
 
     // =================================================
-    // NUMERIC VALUES
+    // EXPERIENCE
     // =================================================
 
     const parsedExperience =
@@ -767,24 +1195,6 @@ const createDoctor = async (req, res) => {
       experience !== ""
         ? Number(experience)
         : 0;
-
-    const parsedConsultationFee =
-      consultationFee !== undefined &&
-      consultationFee !== ""
-        ? Number(consultationFee)
-        : 0;
-
-    const parsedAppointmentDuration =
-      appointmentDuration !== undefined &&
-      appointmentDuration !== ""
-        ? Number(
-            appointmentDuration
-          )
-        : 30;
-
-    // =================================================
-    // NUMBER VALIDATION
-    // =================================================
 
     if (
       !Number.isFinite(
@@ -796,9 +1206,21 @@ const createDoctor = async (req, res) => {
 
       return sendBadrequest(
         res,
-        "Experience must be a valid positive number"
+        "Experience must be zero or a positive number"
       );
     }
+
+    // =================================================
+    // CONSULTATION FEE
+    // =================================================
+
+    const parsedConsultationFee =
+      consultationFee !== undefined &&
+      consultationFee !== ""
+        ? Number(
+            consultationFee
+          )
+        : 0;
 
     if (
       !Number.isFinite(
@@ -810,20 +1232,7 @@ const createDoctor = async (req, res) => {
 
       return sendBadrequest(
         res,
-        "Consultation fee must be a valid positive number"
-      );
-    }
-
-    if (
-      ![15, 30, 45, 60].includes(
-        parsedAppointmentDuration
-      )
-    ) {
-      await session.abortTransaction();
-
-      return sendBadrequest(
-        res,
-        "Appointment duration must be 15, 30, 45 or 60 minutes"
+        "Consultation fee must be zero or a positive number"
       );
     }
 
@@ -843,7 +1252,7 @@ const createDoctor = async (req, res) => {
 
       return sendBadrequest(
         res,
-        "Invalid date of birth"
+        "Please provide a valid date of birth"
       );
     }
 
@@ -859,7 +1268,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // GENERATE TEMPORARY PASSWORD
+    // TEMPORARY PASSWORD
     // =================================================
 
     temporaryPassword =
@@ -868,10 +1277,6 @@ const createDoctor = async (req, res) => {
         .toString("base64url") +
       "@A1";
 
-    // =================================================
-    // HASH PASSWORD
-    // =================================================
-
     const hashedPassword =
       await bcrypt.hash(
         temporaryPassword,
@@ -879,24 +1284,19 @@ const createDoctor = async (req, res) => {
       );
 
     // =================================================
-    // CREATE USER ACCOUNT
+    // CREATE USER
     // =================================================
 
     const user = new User({
-      name:
-        `${cleanFirstName} ${cleanLastName}`,
+      name: `${cleanFirstName} ${cleanLastName}`,
 
-      email:
-        cleanEmail,
+      email: cleanEmail,
 
-      password:
-        hashedPassword,
+      password: hashedPassword,
 
-      role:
-        "doctor",
+      role: "doctor",
 
-      isActive:
-        true,
+      isActive: true,
     });
 
     await user.save({
@@ -945,34 +1345,31 @@ const createDoctor = async (req, res) => {
         cleanLicenseNumber,
 
       availability:
-        parsedAvailability,
+        normalizedAvailability,
 
       appointmentDuration:
         parsedAppointmentDuration,
 
-      status:
-        true,
+      status: true,
 
       address: {
-        fullAddress:
-          fullAddress
-            ? String(fullAddress).trim()
-            : "",
+        fullAddress: fullAddress
+          ? String(
+              fullAddress
+            ).trim()
+          : "",
 
-        city:
-          city
-            ? String(city).trim()
-            : "",
+        city: city
+          ? String(city).trim()
+          : "",
 
-        state:
-          state
-            ? String(state).trim()
-            : "",
+        state: state
+          ? String(state).trim()
+          : "",
 
-        pincode:
-          pincode
-            ? String(pincode).trim()
-            : "",
+        pincode: pincode
+          ? String(pincode).trim()
+          : "",
       },
     });
 
@@ -984,13 +1381,13 @@ const createDoctor = async (req, res) => {
       doctor._id;
 
     // =================================================
-    // COMMIT TRANSACTION
+    // COMMIT
     // =================================================
 
     await session.commitTransaction();
 
     // =================================================
-    // SEND CREDENTIALS EMAIL
+    // SEND EMAIL
     // =================================================
 
     let emailStatus = {
@@ -1008,62 +1405,18 @@ const createDoctor = async (req, res) => {
 
       emailStatus = {
         sent: true,
+
         messageId:
-          emailResult?.messageId || null,
+          emailResult?.messageId ||
+          null,
       };
-
-      console.log(
-        "=========================================="
-      );
-
-      console.log(
-        "DOCTOR ACCOUNT EMAIL SENT"
-      );
-
-      console.log(
-        "Doctor:",
-        `${cleanFirstName} ${cleanLastName}`
-      );
-
-      console.log(
-        "Email:",
-        cleanEmail
-      );
-
-      console.log(
-        "Message ID:",
-        emailResult?.messageId || "N/A"
-      );
-
-      console.log(
-        "=========================================="
-      );
     } catch (emailError) {
-      console.error(
-        "=========================================="
-      );
+      // Email failure should NOT
+      // make doctor creation fail.
 
       console.error(
-        "DOCTOR CREATED BUT EMAIL FAILED"
-      );
-
-      console.error(
-        "Doctor ID:",
-        createdDoctorId
-      );
-
-      console.error(
-        "Email:",
-        cleanEmail
-      );
-
-      console.error(
-        "Email Error:",
+        "Doctor created but email sending failed:",
         emailError.message
-      );
-
-      console.error(
-        "=========================================="
       );
     }
 
@@ -1087,7 +1440,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // SUCCESS RESPONSE
+    // SUCCESS
     // =================================================
 
     return sendcreated(
@@ -1099,7 +1452,9 @@ const createDoctor = async (req, res) => {
 
       {
         doctor:
-          createdDoctor,
+          prepareDoctorResponse(
+            createdDoctor
+          ),
 
         email: {
           sent:
@@ -1112,7 +1467,7 @@ const createDoctor = async (req, res) => {
     );
   } catch (error) {
     // =================================================
-    // ABORT TRANSACTION
+    // TRANSACTION ROLLBACK
     // =================================================
 
     if (
@@ -1122,48 +1477,15 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // ERROR LOG
-    // =================================================
-
-    console.error(
-      "=========================================="
-    );
-
-    console.error(
-      "CREATE DOCTOR ERROR"
-    );
-
-    console.error(
-      "Name:",
-      error.name
-    );
-
-    console.error(
-      "Message:",
-      error.message
-    );
-
-    console.error(
-      "Code:",
-      error.code
-    );
-
-    console.error(
-      "=========================================="
-    );
-
-    // =================================================
     // DUPLICATE KEY
     // =================================================
 
-    if (
-      error.code === 11000
-    ) {
+    if (error.code === 11000) {
       const duplicateFields =
         Object.keys(
           error.keyPattern ||
-          error.keyValue ||
-          {}
+            error.keyValue ||
+            {}
         );
 
       if (
@@ -1195,7 +1517,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // MONGOOSE VALIDATION ERROR
+    // MONGOOSE VALIDATION
     // =================================================
 
     if (
@@ -1214,14 +1536,14 @@ const createDoctor = async (req, res) => {
 
       return sendBadrequest(
         res,
-        messages.length > 0
+        messages.length
           ? messages.join(", ")
-          : "Invalid doctor data"
+          : "Please check the doctor information"
       );
     }
 
     // =================================================
-    // CAST ERROR
+    // INVALID OBJECT ID
     // =================================================
 
     if (
@@ -1235,7 +1557,7 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // JSON ERROR
+    // INVALID JSON
     // =================================================
 
     if (
@@ -1249,30 +1571,31 @@ const createDoctor = async (req, res) => {
     }
 
     // =================================================
-    // SERVER ERROR
+    // UNEXPECTED SERVER ERROR
     // =================================================
+
+    console.error(
+      "Create doctor server error:",
+      error
+    );
 
     return sendServerError(
       res,
-      error.message ||
-        "Failed to create doctor"
+      "Unable to create doctor. Please try again."
     );
   } finally {
     await session.endSession();
   }
 };
- 
-
+// =====================================================
+// GET ALL DOCTORS
+// =====================================================
 
 const getAllDoctors = async (
   req,
   res
 ) => {
   try {
-    // =================================================
-    // QUERY VALIDATION
-    // =================================================
-
     if (
       req.query &&
       typeof req.query !==
@@ -1283,10 +1606,6 @@ const getAllDoctors = async (
         "Invalid request query"
       );
     }
-
-    // =================================================
-    // FETCH DOCTORS
-    // =================================================
 
     const doctors =
       await Doctor.find()
@@ -1299,10 +1618,6 @@ const getAllDoctors = async (
         })
         .lean();
 
-    // =================================================
-    // RESPONSE VALIDATION
-    // =================================================
-
     if (
       !Array.isArray(doctors)
     ) {
@@ -1312,14 +1627,18 @@ const getAllDoctors = async (
       );
     }
 
-    // =================================================
-    // SUCCESS
-    // =================================================
+    const normalizedDoctors =
+      doctors.map(
+        (doctor) =>
+          prepareDoctorResponse(
+            doctor
+          )
+      );
 
     return sendsuccess(
       res,
       "Doctors fetched successfully",
-      doctors
+      normalizedDoctors
     );
   } catch (error) {
     console.error(
@@ -1382,13 +1701,12 @@ const getDoctorById = async (
   res
 ) => {
   try {
-    const {
-      id,
-    } = req.params;
+    const { id } =
+      req.params;
 
     if (
       !id ||
-      !/^[0-9a-fA-F]{24}$/.test(id)
+      !mongoose.isValidObjectId(id)
     ) {
       return sendBadrequest(
         res,
@@ -1414,7 +1732,9 @@ const getDoctorById = async (
     return sendsuccess(
       res,
       "Doctor fetched successfully",
-      doctor
+      prepareDoctorResponse(
+        doctor
+      )
     );
   } catch (error) {
     console.error(
@@ -1450,17 +1770,17 @@ const updateDoctorStatus =
     res
   ) => {
     try {
-      const {
-        id,
-      } = req.params;
+      const { id } =
+        req.params;
 
-      const {
-        status,
-      } = req.body;
+      const { status } =
+        req.body;
 
       if (
         !id ||
-        !/^[0-9a-fA-F]{24}$/.test(id)
+        !mongoose.isValidObjectId(
+          id
+        )
       ) {
         return sendBadrequest(
           res,
@@ -1502,8 +1822,12 @@ const updateDoctorStatus =
 
       return sendsuccess(
         res,
-        "Doctor status updated successfully",
-        doctor
+        status
+          ? "Doctor is now available for appointments"
+          : "Doctor is now unavailable for appointments",
+        prepareDoctorResponse(
+          doctor
+        )
       );
     } catch (error) {
       console.error(
@@ -1538,13 +1862,12 @@ const deleteDoctor = async (
   res
 ) => {
   try {
-    const {
-      id,
-    } = req.params;
+    const { id } =
+      req.params;
 
     if (
       !id ||
-      !/^[0-9a-fA-F]{24}$/.test(id)
+      !mongoose.isValidObjectId(id)
     ) {
       return sendBadrequest(
         res,
@@ -1563,10 +1886,6 @@ const deleteDoctor = async (
         "Doctor not found"
       );
     }
-
-    // =================================================
-    // DELETE LINKED USER ACCOUNT
-    // =================================================
 
     await User.findOneAndDelete({
       email: doctor.email,
@@ -1603,7 +1922,7 @@ const deleteDoctor = async (
 };
 
 // =====================================================
-// EXPORT CONTROLLERS
+// EXPORT
 // =====================================================
 
 module.exports = {
@@ -1613,8 +1932,3 @@ module.exports = {
   updateDoctorStatus,
   deleteDoctor,
 };
-
-
-
-
- 

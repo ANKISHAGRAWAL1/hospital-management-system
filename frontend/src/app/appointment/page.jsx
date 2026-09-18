@@ -38,7 +38,7 @@ import { client } from "@/app/components/healper";
 const SERVER_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(
     /\/api\/?$/,
-    ""
+    
   ) || "http://localhost:5000";
 
 /* =========================================================

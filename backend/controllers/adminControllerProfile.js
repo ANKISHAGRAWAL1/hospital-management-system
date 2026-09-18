@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+const mongoose = require("mongoose");
 
 /* =========================================================
    HELPER: GET ADMIN ID
@@ -12,6 +13,17 @@ const getAdminId = (req) => {
 };
 
 /* =========================================================
+   HELPER: VALIDATE ADMIN ID
+========================================================= */
+
+const isValidAdminId = (adminId) => {
+  return (
+    adminId &&
+    mongoose.isValidObjectId(adminId)
+  );
+};
+
+/* =========================================================
    HELPER: DELETE PROFILE IMAGE
 ========================================================= */
 
@@ -19,22 +31,40 @@ const deleteProfileImageFile = (profileImage) => {
   try {
     if (!profileImage) return;
 
-    /*
-      profileImage example:
-      /uploads/admin/admin-123456.jpg
-    */
+    const cleanPath = String(profileImage)
+      .replace(/^\/+/, "");
 
-    const cleanPath = profileImage.replace(/^\/+/, "");
-
-    const filePath = path.join(
+    const filePath = path.resolve(
       __dirname,
       "..",
       cleanPath
     );
 
+    const projectRoot = path.resolve(
+      __dirname,
+      ".."
+    );
+
+    if (
+      !filePath.startsWith(
+        projectRoot + path.sep
+      )
+    ) {
+      console.error(
+        "Invalid profile image path:",
+        profileImage
+      );
+
+      return;
+    }
+
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log("Old profile image deleted:", filePath);
+
+      console.log(
+        "Old profile image deleted:",
+        filePath
+      );
     }
   } catch (error) {
     console.error(
@@ -45,28 +75,67 @@ const deleteProfileImageFile = (profileImage) => {
 };
 
 /* =========================================================
+   HELPER: ADMIN RESPONSE
+========================================================= */
+
+const formatAdminResponse = (admin) => {
+  return {
+    id: admin._id,
+    name: admin.name,
+    email: admin.email,
+    phone: admin.phone,
+    profileImage:
+      admin.profileImage || null,
+    role: admin.role,
+    isActive: admin.isActive,
+    createdAt: admin.createdAt,
+    updatedAt: admin.updatedAt,
+  };
+};
+
+/* =========================================================
    GET ADMIN PROFILE
 ========================================================= */
 
 const getAdminProfile = async (req, res) => {
   try {
+    console.log(
+      "========== GET ADMIN PROFILE =========="
+    );
+
     const adminId = getAdminId(req);
 
-    console.log("========== GET ADMIN PROFILE ==========");
-    console.log("REQ.USER:", req.user);
-    console.log("ADMIN ID:", adminId);
+    console.log(
+      "REQ.USER:",
+      req.user
+    );
+
+    console.log(
+      "ADMIN ID:",
+      adminId
+    );
 
     if (!adminId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized. Admin ID not found",
+        message:
+          "Unauthorized. Admin ID not found",
       });
     }
 
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "admin",
-    }).select("-password");
+    if (!isValidAdminId(adminId)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid admin ID",
+      });
+    }
+
+    const admin =
+      await User.findOne({
+        _id: adminId,
+        role: "admin",
+      }).select("-password");
 
     if (!admin) {
       return res.status(404).json({
@@ -77,19 +146,11 @@ const getAdminProfile = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Admin profile fetched successfully",
+      message:
+        "Admin profile fetched successfully",
 
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        profileImage: admin.profileImage || null,
-        role: admin.role,
-        isActive: admin.isActive,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      },
+      admin:
+        formatAdminResponse(admin),
     });
   } catch (error) {
     console.error(
@@ -99,7 +160,8 @@ const getAdminProfile = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Unable to fetch admin profile",
+      message:
+        "Unable to fetch admin profile",
     });
   }
 };
@@ -108,23 +170,45 @@ const getAdminProfile = async (req, res) => {
    UPDATE ADMIN PROFILE
 ========================================================= */
 
-const updateAdminProfile = async (req, res) => {
+const updateAdminProfile = async (
+  req,
+  res
+) => {
   try {
     console.log(
       "========== UPDATE ADMIN PROFILE =========="
     );
 
-    console.log("REQ.USER:", req.user);
-    console.log("REQ.BODY:", req.body);
+    console.log(
+      "REQ.USER:",
+      req.user
+    );
+
+    console.log(
+      "REQ.BODY:",
+      req.body
+    );
 
     const adminId = getAdminId(req);
 
-    console.log("ADMIN ID:", adminId);
+    console.log(
+      "ADMIN ID:",
+      adminId
+    );
 
     if (!adminId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized. Admin ID not found",
+        message:
+          "Unauthorized. Admin ID not found",
+      });
+    }
+
+    if (!isValidAdminId(adminId)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid admin ID",
       });
     }
 
@@ -134,14 +218,11 @@ const updateAdminProfile = async (req, res) => {
       phone,
     } = req.body;
 
-    /* =====================================================
-       FIND ADMIN
-    ===================================================== */
-
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "admin",
-    });
+    const admin =
+      await User.findOne({
+        _id: adminId,
+        role: "admin",
+      });
 
     if (!admin) {
       return res.status(404).json({
@@ -155,19 +236,22 @@ const updateAdminProfile = async (req, res) => {
     ===================================================== */
 
     if (name !== undefined) {
-      const cleanName = String(name).trim();
+      const cleanName =
+        String(name).trim();
 
       if (!cleanName) {
         return res.status(400).json({
           success: false,
-          message: "Name is required",
+          message:
+            "Name is required",
         });
       }
 
       if (cleanName.length < 2) {
         return res.status(400).json({
           success: false,
-          message: "Name must be at least 2 characters",
+          message:
+            "Name must be at least 2 characters",
         });
       }
 
@@ -179,14 +263,16 @@ const updateAdminProfile = async (req, res) => {
     ===================================================== */
 
     if (email !== undefined) {
-      const cleanEmail = String(email)
-        .trim()
-        .toLowerCase();
+      const cleanEmail =
+        String(email)
+          .trim()
+          .toLowerCase();
 
       if (!cleanEmail) {
         return res.status(400).json({
           success: false,
-          message: "Email is required",
+          message:
+            "Email is required",
         });
       }
 
@@ -196,21 +282,24 @@ const updateAdminProfile = async (req, res) => {
       if (!emailRegex.test(cleanEmail)) {
         return res.status(400).json({
           success: false,
-          message: "Please enter a valid email address",
+          message:
+            "Please enter a valid email address",
         });
       }
 
-      const existingEmail = await User.findOne({
-        email: cleanEmail,
-        _id: {
-          $ne: admin._id,
-        },
-      });
+      const existingEmail =
+        await User.findOne({
+          email: cleanEmail,
+          _id: {
+            $ne: admin._id,
+          },
+        });
 
       if (existingEmail) {
         return res.status(409).json({
           success: false,
-          message: "Email already exists",
+          message:
+            "Email already exists",
         });
       }
 
@@ -222,22 +311,19 @@ const updateAdminProfile = async (req, res) => {
     ===================================================== */
 
     if (phone !== undefined) {
-      const cleanPhone = String(phone).trim();
+      const cleanPhone =
+        String(phone).trim();
 
       if (!cleanPhone) {
         return res.status(400).json({
           success: false,
-          message: "Phone number is required",
+          message:
+            "Phone number is required",
         });
       }
 
-      /*
-        Indian 10 digit mobile validation.
-        If your project allows international numbers,
-        remove this regex validation.
-      */
-
-      const phoneRegex = /^[6-9]\d{9}$/;
+      const phoneRegex =
+        /^[6-9]\d{9}$/;
 
       if (!phoneRegex.test(cleanPhone)) {
         return res.status(400).json({
@@ -247,17 +333,19 @@ const updateAdminProfile = async (req, res) => {
         });
       }
 
-      const existingPhone = await User.findOne({
-        phone: cleanPhone,
-        _id: {
-          $ne: admin._id,
-        },
-      });
+      const existingPhone =
+        await User.findOne({
+          phone: cleanPhone,
+          _id: {
+            $ne: admin._id,
+          },
+        });
 
       if (existingPhone) {
         return res.status(409).json({
           success: false,
-          message: "Phone number already exists",
+          message:
+            "Phone number already exists",
         });
       }
 
@@ -275,25 +363,13 @@ const updateAdminProfile = async (req, res) => {
       admin._id
     );
 
-    /* =====================================================
-       RESPONSE
-    ===================================================== */
-
     return res.status(200).json({
       success: true,
-      message: "Admin profile updated successfully",
+      message:
+        "Admin profile updated successfully",
 
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        profileImage: admin.profileImage || null,
-        role: admin.role,
-        isActive: admin.isActive,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      },
+      admin:
+        formatAdminResponse(admin),
     });
   } catch (error) {
     console.error(
@@ -316,25 +392,36 @@ const updateAdminProfile = async (req, res) => {
 
     if (error.code === 11000) {
       const duplicateField =
-        Object.keys(error.keyPattern || {})[0];
+        Object.keys(
+          error.keyPattern || {}
+        )[0];
 
-      if (duplicateField === "email") {
+      if (
+        duplicateField ===
+        "email"
+      ) {
         return res.status(409).json({
           success: false,
-          message: "Email already exists",
+          message:
+            "Email already exists",
         });
       }
 
-      if (duplicateField === "phone") {
+      if (
+        duplicateField ===
+        "phone"
+      ) {
         return res.status(409).json({
           success: false,
-          message: "Phone number already exists",
+          message:
+            "Phone number already exists",
         });
       }
 
       return res.status(409).json({
         success: false,
-        message: "Email or phone already exists",
+        message:
+          "Email or phone already exists",
       });
     }
 
@@ -342,14 +429,22 @@ const updateAdminProfile = async (req, res) => {
        VALIDATION ERROR
     ===================================================== */
 
-    if (error.name === "ValidationError") {
-      const messages = Object.values(
-        error.errors
-      ).map((err) => err.message);
+    if (
+      error.name ===
+      "ValidationError"
+    ) {
+      const messages =
+        Object.values(
+          error.errors
+        ).map(
+          (err) =>
+            err.message
+        );
 
       return res.status(400).json({
         success: false,
-        message: messages.join(", "),
+        message:
+          messages.join(", "),
       });
     }
 
@@ -366,21 +461,42 @@ const updateAdminProfile = async (req, res) => {
    UPLOAD ADMIN PROFILE IMAGE
 ========================================================= */
 
-const uploadAdminProfileImage = async (req, res) => {
+const uploadAdminProfileImage = async (
+  req,
+  res
+) => {
+  let uploadedFilePath = null;
+
   try {
     console.log(
       "========== UPLOAD ADMIN PROFILE IMAGE =========="
     );
 
-    console.log("REQ.USER:", req.user);
-    console.log("REQ.FILE:", req.file);
+    console.log(
+      "REQ.USER:",
+      req.user
+    );
+
+    console.log(
+      "REQ.FILE:",
+      req.file
+    );
 
     const adminId = getAdminId(req);
 
     if (!adminId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized. Admin ID not found",
+        message:
+          "Unauthorized. Admin ID not found",
+      });
+    }
+
+    if (!isValidAdminId(adminId)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid admin ID",
       });
     }
 
@@ -391,32 +507,40 @@ const uploadAdminProfileImage = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "Please select a profile image",
+        message:
+          "Please select a profile image",
       });
     }
+
+    uploadedFilePath =
+      req.file.path;
 
     /* =====================================================
        FIND ADMIN
     ===================================================== */
 
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "admin",
-    });
+    const admin =
+      await User.findOne({
+        _id: adminId,
+        role: "admin",
+      });
 
     if (!admin) {
-      /*
-        New uploaded file should be removed
-        if admin does not exist.
-      */
-
-      if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+      if (
+        uploadedFilePath &&
+        fs.existsSync(
+          uploadedFilePath
+        )
+      ) {
+        fs.unlinkSync(
+          uploadedFilePath
+        );
       }
 
       return res.status(404).json({
         success: false,
-        message: "Admin not found",
+        message:
+          "Admin not found",
       });
     }
 
@@ -424,11 +548,8 @@ const uploadAdminProfileImage = async (req, res) => {
        DELETE OLD IMAGE
     ===================================================== */
 
-    if (admin.profileImage) {
-      deleteProfileImageFile(
-        admin.profileImage
-      );
-    }
+    const oldProfileImage =
+      admin.profileImage;
 
     /* =====================================================
        CREATE IMAGE URL
@@ -437,37 +558,41 @@ const uploadAdminProfileImage = async (req, res) => {
     const profileImage =
       `/uploads/admin/${req.file.filename}`;
 
-    admin.profileImage = profileImage;
+    admin.profileImage =
+      profileImage;
 
     await admin.save();
+
+    /* =====================================================
+       DELETE OLD IMAGE AFTER
+       SUCCESSFUL DATABASE SAVE
+    ===================================================== */
+
+    if (
+      oldProfileImage &&
+      oldProfileImage !==
+        profileImage
+    ) {
+      deleteProfileImageFile(
+        oldProfileImage
+      );
+    }
 
     console.log(
       "PROFILE IMAGE UPDATED:",
       profileImage
     );
 
-    /* =====================================================
-       RESPONSE
-    ===================================================== */
-
     return res.status(200).json({
       success: true,
       message:
         "Profile image uploaded successfully",
 
-      profileImage: admin.profileImage,
+      profileImage:
+        admin.profileImage,
 
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        profileImage: admin.profileImage,
-        role: admin.role,
-        isActive: admin.isActive,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      },
+      admin:
+        formatAdminResponse(admin),
     });
   } catch (error) {
     console.error(
@@ -475,23 +600,59 @@ const uploadAdminProfileImage = async (req, res) => {
       error
     );
 
-    /*
-      If DB save fails, remove newly uploaded file
-    */
+    /* =====================================================
+       DELETE NEW FILE IF DATABASE SAVE FAILED
+    ===================================================== */
 
     if (
-      req.file &&
-      req.file.path &&
-      fs.existsSync(req.file.path)
+      uploadedFilePath &&
+      fs.existsSync(
+        uploadedFilePath
+      )
     ) {
       try {
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(
+          uploadedFilePath
+        );
+
+        console.log(
+          "New uploaded image deleted after failure"
+        );
       } catch (deleteError) {
         console.error(
           "Unable to delete uploaded file:",
           deleteError
         );
       }
+    }
+
+    if (
+      error.code === 11000
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Profile information already exists",
+      });
+    }
+
+    if (
+      error.name ===
+      "ValidationError"
+    ) {
+      const messages =
+        Object.values(
+          error.errors
+        ).map(
+          (err) =>
+            err.message
+        );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          messages.join(", "),
+      });
     }
 
     return res.status(500).json({
@@ -507,7 +668,10 @@ const uploadAdminProfileImage = async (req, res) => {
    REMOVE ADMIN PROFILE IMAGE
 ========================================================= */
 
-const removeAdminProfileImage = async (req, res) => {
+const removeAdminProfileImage = async (
+  req,
+  res
+) => {
   try {
     console.log(
       "========== REMOVE ADMIN PROFILE IMAGE =========="
@@ -518,39 +682,49 @@ const removeAdminProfileImage = async (req, res) => {
     if (!adminId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized. Admin ID not found",
+        message:
+          "Unauthorized. Admin ID not found",
       });
     }
 
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "admin",
-    });
+    if (!isValidAdminId(adminId)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid admin ID",
+      });
+    }
+
+    const admin =
+      await User.findOne({
+        _id: adminId,
+        role: "admin",
+      });
 
     if (!admin) {
       return res.status(404).json({
         success: false,
-        message: "Admin not found",
+        message:
+          "Admin not found",
       });
     }
 
-    /* =====================================================
-       DELETE IMAGE FILE
-    ===================================================== */
-
-    if (admin.profileImage) {
-      deleteProfileImageFile(
-        admin.profileImage
-      );
-    }
-
-    /* =====================================================
-       REMOVE FROM DATABASE
-    ===================================================== */
+    const oldProfileImage =
+      admin.profileImage;
 
     admin.profileImage = null;
 
     await admin.save();
+
+    /* =====================================================
+       DELETE FILE AFTER DB SUCCESS
+    ===================================================== */
+
+    if (oldProfileImage) {
+      deleteProfileImageFile(
+        oldProfileImage
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -567,6 +741,7 @@ const removeAdminProfileImage = async (req, res) => {
     return res.status(500).json({
       success: false,
       message:
+        error.message ||
         "Unable to remove profile image",
     });
   }
@@ -576,18 +751,31 @@ const removeAdminProfileImage = async (req, res) => {
    CHANGE ADMIN PASSWORD
 ========================================================= */
 
-const changeAdminPassword = async (req, res) => {
+const changeAdminPassword = async (
+  req,
+  res
+) => {
   try {
     console.log(
       "========== CHANGE ADMIN PASSWORD =========="
     );
 
-    const adminId = getAdminId(req);
+    const adminId =
+      getAdminId(req);
 
     if (!adminId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized. Admin ID not found",
+        message:
+          "Unauthorized. Admin ID not found",
+      });
+    }
+
+    if (!isValidAdminId(adminId)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid admin ID",
       });
     }
 
@@ -617,15 +805,29 @@ const changeAdminPassword = async (req, res) => {
        FIND ADMIN
     ===================================================== */
 
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "admin",
-    });
+    const admin =
+      await User.findOne({
+        _id: adminId,
+        role: "admin",
+      });
 
     if (!admin) {
       return res.status(404).json({
         success: false,
-        message: "Admin not found",
+        message:
+          "Admin not found",
+      });
+    }
+
+    /* =====================================================
+       CHECK PASSWORD EXISTS
+    ===================================================== */
+
+    if (!admin.password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Admin password is not configured",
       });
     }
 
@@ -633,10 +835,11 @@ const changeAdminPassword = async (req, res) => {
        CURRENT PASSWORD
     ===================================================== */
 
-    const isMatch = await bcrypt.compare(
-      currentPassword,
-      admin.password
-    );
+    const isMatch =
+      await bcrypt.compare(
+        currentPassword,
+        admin.password
+      );
 
     if (!isMatch) {
       return res.status(401).json({
@@ -650,7 +853,9 @@ const changeAdminPassword = async (req, res) => {
        NEW PASSWORD LENGTH
     ===================================================== */
 
-    if (newPassword.length < 6) {
+    if (
+      String(newPassword).length < 6
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -662,10 +867,14 @@ const changeAdminPassword = async (req, res) => {
        CONFIRM PASSWORD
     ===================================================== */
 
-    if (newPassword !== confirmPassword) {
+    if (
+      newPassword !==
+      confirmPassword
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Passwords do not match",
+        message:
+          "Passwords do not match",
       });
     }
 
@@ -685,50 +894,3 @@ const changeAdminPassword = async (req, res) => {
         message:
           "New password must be different from current password",
       });
-    }
-
-    /* =====================================================
-       HASH NEW PASSWORD
-    ===================================================== */
-
-    admin.password = await bcrypt.hash(
-      newPassword,
-      12
-    );
-
-    await admin.save();
-
-    console.log(
-      "ADMIN PASSWORD CHANGED:",
-      admin._id
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Password changed successfully",
-    });
-  } catch (error) {
-    console.error(
-      "Change admin password error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to change password",
-    });
-  }
-};
-
-/* =========================================================
-   EXPORTS
-========================================================= */
-
-module.exports = {
-  getAdminProfile,
-  updateAdminProfile,
-  uploadAdminProfileImage,
-  removeAdminProfileImage,
-  changeAdminPassword,
-};

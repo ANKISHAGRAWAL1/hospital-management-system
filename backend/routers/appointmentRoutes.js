@@ -5,6 +5,7 @@ const {
   getMyAppointments,
   getAppointmentById,
   cancelAppointment,
+  getAvailableAppointmentSlots,
 } = require("../controllers/appointmentController");
 
 const {
@@ -14,10 +15,15 @@ const {
 
 const router = express.Router();
 
-
 // ======================================================
 // PATIENT APPOINTMENT ROUTES
 // ======================================================
+
+// Get available appointment slots
+router.get(
+  "/available-slots",
+  getAvailableAppointmentSlots
+);
 
 // Create appointment
 router.post(
@@ -27,7 +33,6 @@ router.post(
   createAppointment
 );
 
-
 // Get logged-in patient's all appointments
 router.get(
   "/my",
@@ -35,7 +40,6 @@ router.get(
   authorize("patient"),
   getMyAppointments
 );
-
 
 // Get single appointment
 router.get(
@@ -45,7 +49,6 @@ router.get(
   getAppointmentById
 );
 
-
 // Cancel appointment
 router.patch(
   "/:id/cancel",
@@ -53,6 +56,5 @@ router.patch(
   authorize("patient"),
   cancelAppointment
 );
-
 
 module.exports = router;

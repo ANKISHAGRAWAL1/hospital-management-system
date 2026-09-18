@@ -3,21 +3,18 @@
 import { useState } from "react";
 import Sidebar from "./components/sidebar";
 
-export default function ReceptionistLayout({ children }) {
+export default function PatientLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="min-h-screen bg-black text-gray-900">
-      
-      {/* Sidebar */}
+    <div className="min-h-screen bg-[#f7f9fb]">
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
 
-      {/* Main Content */}
       <main
-        className={`min-h-screen transition-all duration-300 ${
+        className={`min-h-screen bg-[#f7f9fb] transition-all duration-300 ${
           sidebarOpen ? "ml-64" : "ml-20"
         }`}
       >

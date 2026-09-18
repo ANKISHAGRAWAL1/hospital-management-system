@@ -141,6 +141,38 @@ app.use(
 );
 
 // =====================================================
+// APPOINTMENTS
+// =====================================================
+
+const appointmentRoutes = require(
+  "./routers/appointmentRoutes"
+);
+
+app.use(
+  "/api/appointments",
+  appointmentRoutes
+);
+
+// =====================================================
+// PAYMENT
+// =====================================================
+
+const paymentRoutes = require(
+  "./routers/paymentRoutes"
+);
+
+app.use(
+  "/api/payment",
+  paymentRoutes
+);
+
+
+// patientDashboardController.
+const patientDashboardRoutes = require("./routers/patientDashboardRoutes");
+
+app.use("/api/patient/dashboard", patientDashboardRoutes);
+
+// =====================================================
 // ROOT
 // =====================================================
 
@@ -151,6 +183,14 @@ app.get("/", (req, res) => {
       "Hospital Management System API is running",
   });
 });
+
+
+
+
+
+const patientProfileRoutes = require("./routers/patientProfileRoutes");
+
+app.use("/api/auth/patient", patientProfileRoutes);
 
 // =====================================================
 // HEALTH CHECK

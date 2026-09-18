@@ -10,15 +10,15 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Selected Department
+    // Department
     department: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Departments",
+      ref: "Department",
       required: true,
       index: true,
     },
 
-    // Selected Doctor
+    // Doctor
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Doctor",
@@ -40,32 +40,26 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Selected Time Slot
+    // Appointment Start Time
     startTime: {
       type: String,
       required: true,
     },
 
+    // Appointment End Time
     endTime: {
       type: String,
       required: true,
     },
 
-    // Optional reason for appointment
-    reason: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-    },
-
-    // Doctor consultation fee
+    // Doctor Consultation Fee
     consultationFee: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Appointment status
+    // Appointment Status
     status: {
       type: String,
       enum: [
@@ -79,7 +73,7 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Payment status
+    // Payment Status
     paymentStatus: {
       type: String,
       enum: [
@@ -93,32 +87,41 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Payment gateway transaction ID
+    // Razorpay Payment ID
     paymentId: {
       type: String,
       default: null,
       trim: true,
     },
 
-    // Cancellation details
+    // Appointment Reason
+    reason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
+
+    // Cancellation Time
     cancelledAt: {
       type: Date,
       default: null,
     },
 
+    // Cancellation Reason
     cancellationReason: {
       type: String,
-      default: null,
       trim: true,
       maxlength: 500,
+      default: null,
     },
 
-    // Additional notes
+    // Additional Notes
     notes: {
       type: String,
-      default: null,
       trim: true,
       maxlength: 1000,
+      default: null,
     },
   },
   {
@@ -126,4 +129,26 @@ const appointmentSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Appointment", appointmentSchema);
+// --------------------------------------------------
+// Prevent Double Booking
+// --------------------------------------------------
+//
+// Same doctor + same date + same time
+// cannot have two active appointments.
+//
+// Cancelled and no-show appointments are ignored
+// by the application booking logic.
+//
+
+appointmentSchema.index({
+  doctor: 1,
+  appointmentDate: 1,
+  startTime: 1,
+  endTime: 1,
+  status: 1,
+});
+
+module.exports = mongoose.model(
+  "Appointment",
+  appointmentSchema
+);

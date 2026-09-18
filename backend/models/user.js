@@ -25,6 +25,56 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      default: null,
+    },
+
+    bloodGroup: {
+      type: String,
+      enum: [
+        "A+",
+        "A-",
+        "B+",
+        "B-",
+        "AB+",
+        "AB-",
+        "O+",
+        "O-",
+      ],
+      default: null,
+    },
+
+    address: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    emergencyContact: {
+      name: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      phone: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      relationship: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+    },
+
+    profileImage: {
+      type: String,
+      default: "",
+    },
+
     password: {
       type: String,
       required: true,
@@ -77,7 +127,6 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Prevent OverwriteModelError during reload/watch
 const User =
   mongoose.models.User ||
   mongoose.model("User", userSchema);

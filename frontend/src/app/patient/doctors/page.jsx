@@ -1,7 +1,8 @@
-"use client";
+ "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
 import {
   Search,
   Filter,
@@ -13,152 +14,328 @@ import {
   UserRound,
   ChevronRight,
   X,
+  Loader2,
 } from "lucide-react";
+
+import { getDepartment } from "@/app/components/utils/Api-call/get_api";
+import { getDoctors } from "@/app/components/utils/Api-call/doctor-api";
+
+const SERVER_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(
+    /\/api\/?$/,
+    ""
+  ) || "http://localhost:5000";
+
+const getDoctorImage = (image) => {
+  if (!image) return "";
+
+  const cleanImage = String(image).trim();
+
+  if (
+    cleanImage.startsWith("http://") ||
+    cleanImage.startsWith("https://") ||
+    cleanImage.startsWith("data:")
+  ) {
+    return cleanImage;
+  }
+
+  return `${SERVER_URL}/${cleanImage.replace(/^\/+/, "")}`;
+};
+
+const getDoctorName = (doctor) => {
+  const fullName = [
+    doctor?.firstName,
+    doctor?.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName) {
+    return `Dr. ${fullName}`;
+  }
+
+  return doctor?.name || "Doctor";
+};
+
+const getDepartmentName = (doctor) => {
+  if (!doctor?.department) return "General";
+
+  if (typeof doctor.department === "string") {
+    return doctor.department;
+  }
+
+  return (
+    doctor.department?.name ||
+    doctor.department?.title ||
+    "General"
+  );
+};
+
+const getSpecialization = (doctor) => {
+  if (Array.isArray(doctor?.specialization)) {
+    return doctor.specialization.join(", ");
+  }
+
+  return doctor?.specialization || "Specialist";
+};
+
+const getExperience = (doctor) => {
+  if (
+    doctor?.experience === undefined ||
+    doctor?.experience === null ||
+    doctor?.experience === ""
+  ) {
+    return "N/A";
+  }
+
+  return `${doctor.experience} Years`;
+};
+
+const getFee = (doctor) => {
+  if (
+    doctor?.consultationFee === undefined ||
+    doctor?.consultationFee === null ||
+    doctor?.consultationFee === ""
+  ) {
+    return "N/A";
+  }
+
+  return `₹${doctor.consultationFee}`;
+};
+
+const getNextAvailability = (doctor) => {
+  if (!Array.isArray(doctor?.availability)) {
+    return {
+      text: "Availability not set",
+      slot: "",
+      available: false,
+    };
+  }
+
+  const availableDays = doctor.availability.filter(
+    (item) =>
+      item?.hospital?.enabled ||
+      item?.video?.enabled
+  );
+
+  if (availableDays.length === 0) {
+    return {
+      text: "Currently unavailable",
+      slot: "",
+      available: false,
+    };
+  }
+
+  const firstDay = availableDays[0];
+
+  const hospitalSlots =
+    firstDay?.hospital?.enabled &&
+    Array.isArray(firstDay?.hospital?.slots)
+      ? firstDay.hospital.slots
+      : [];
+
+  const videoSlots =
+    firstDay?.video?.enabled &&
+    Array.isArray(firstDay?.video?.slots)
+      ? firstDay.video.slots
+      : [];
+
+  const slots =
+    hospitalSlots.length > 0
+      ? hospitalSlots
+      : videoSlots;
+
+  if (slots.length === 0) {
+    return {
+      text: "Available",
+      slot: "",
+      available: true,
+    };
+  }
+
+  const firstSlot = slots[0];
+
+  let startTime = "";
+
+  if (typeof firstSlot === "string") {
+    startTime = firstSlot;
+  } else {
+    startTime =
+      firstSlot?.startTime ||
+      firstSlot?.start ||
+      firstSlot?.from ||
+      "";
+  }
+
+  return {
+    text: `Available ${firstDay?.day || ""}`.trim(),
+    slot: startTime,
+    available: true,
+  };
+};
+
+const getArrayFromResponse = (response, keys = []) => {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  for (const key of keys) {
+    if (Array.isArray(response?.[key])) {
+      return response[key];
+    }
+
+    if (Array.isArray(response?.data?.[key])) {
+      return response.data[key];
+    }
+  }
+
+  return [];
+};
 
 export default function DoctorsPage() {
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("All");
   const [showFilter, setShowFilter] = useState(false);
 
-  const departments = [
-    "All",
-    "Cardiology",
-    "Dermatology",
-    "General Medicine",
-    "Neurology",
-    "Orthopedics",
-    "Pediatrics",
-  ];
+  const [doctors, setDoctors] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
-  const doctors = [
-    {
-      id: 1,
-      name: "Dr. Rahul Sharma",
-      department: "Cardiology",
-      specialization: "Cardiologist",
-      experience: "12 Years",
-      fee: "₹800",
-      rating: "4.8",
-      patients: "1,200+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Today",
-      nextSlot: "10:30 AM",
-    },
-    {
-      id: 2,
-      name: "Dr. Priya Mehta",
-      department: "Dermatology",
-      specialization: "Dermatologist",
-      experience: "9 Years",
-      fee: "₹600",
-      rating: "4.7",
-      patients: "950+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Today",
-      nextSlot: "04:00 PM",
-    },
-    {
-      id: 3,
-      name: "Dr. Amit Verma",
-      department: "General Medicine",
-      specialization: "Physician",
-      experience: "15 Years",
-      fee: "₹500",
-      rating: "4.9",
-      patients: "1,800+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Tomorrow",
-      nextSlot: "11:00 AM",
-    },
-    {
-      id: 4,
-      name: "Dr. Neha Gupta",
-      department: "Neurology",
-      specialization: "Neurologist",
-      experience: "11 Years",
-      fee: "₹900",
-      rating: "4.8",
-      patients: "1,100+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Today",
-      nextSlot: "02:30 PM",
-    },
-    {
-      id: 5,
-      name: "Dr. Rajesh Kumar",
-      department: "Orthopedics",
-      specialization: "Orthopedic Surgeon",
-      experience: "14 Years",
-      fee: "₹700",
-      rating: "4.6",
-      patients: "1,050+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Tomorrow",
-      nextSlot: "09:30 AM",
-    },
-    {
-      id: 6,
-      name: "Dr. Anjali Singh",
-      department: "Pediatrics",
-      specialization: "Pediatrician",
-      experience: "8 Years",
-      fee: "₹550",
-      rating: "4.7",
-      patients: "800+",
-      location: "City Hospital, Jaipur",
-      availability: "Available Today",
-      nextSlot: "05:00 PM",
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const filteredDoctors = doctors.filter((doctor) => {
-    const matchesDepartment =
-      department === "All" ||
-      doctor.department === department;
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    const searchText = search.toLowerCase();
+        const [
+          departmentResponse,
+          doctorResponse,
+        ] = await Promise.all([
+          getDepartment(),
+          getDoctors(),
+        ]);
 
-    const matchesSearch =
-      doctor.name.toLowerCase().includes(searchText) ||
-      doctor.specialization
-        .toLowerCase()
-        .includes(searchText) ||
-      doctor.department
-        .toLowerCase()
-        .includes(searchText);
+        const departmentData = getArrayFromResponse(
+          departmentResponse,
+          ["departments"]
+        );
 
-    return matchesDepartment && matchesSearch;
-  });
+        const doctorData = getArrayFromResponse(
+          doctorResponse,
+          ["doctors"]
+        );
+
+        setDepartments(
+          departmentData.filter(
+            (item) => item?.status !== false
+          )
+        );
+
+        setDoctors(
+          doctorData.filter(
+            (item) => item?.status !== false
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Find Doctors Load Error:",
+          error
+        );
+
+        const message =
+          error?.response?.data?.message ||
+          error?.message ||
+          "Failed to load doctors";
+
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const filteredDoctors = useMemo(() => {
+    const searchText = search
+      .trim()
+      .toLowerCase();
+
+    return doctors.filter((doctor) => {
+      const departmentName =
+        getDepartmentName(doctor);
+
+      const specialization =
+        getSpecialization(doctor);
+
+      const doctorName =
+        getDoctorName(doctor);
+
+      const matchesDepartment =
+        department === "All" ||
+        departmentName
+          .trim()
+          .toLowerCase() ===
+          department
+            .trim()
+            .toLowerCase();
+
+      const matchesSearch =
+        !searchText ||
+        doctorName
+          .toLowerCase()
+          .includes(searchText) ||
+        specialization
+          .toLowerCase()
+          .includes(searchText) ||
+        departmentName
+          .toLowerCase()
+          .includes(searchText);
+
+      return (
+        matchesDepartment &&
+        matchesSearch
+      );
+    });
+  }, [doctors, search, department]);
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <main className="p-4 sm:p-6">
-        {/* Page Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      <main className="p-4 sm:p-6 lg:p-8">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold">
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-slate-900 sm:text-2xl">
               Find Doctors
             </h1>
 
-            <p className="text-sm text-gray-500 mt-1">
-              Search and find the right doctor for your healthcare needs.
+            <p className="mt-1 text-[13px] leading-5 text-slate-500">
+              Find the right doctor for your healthcare needs.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <UserRound size={15} />
+          <div className="flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium tracking-[-0.005em] text-slate-500 shadow-sm">
+            <UserRound
+              size={15}
+              className="text-[#075db5]"
+            />
+
             {doctors.length} Doctors Available
           </div>
         </div>
 
-        {/* Search & Filter */}
-        <div className="border border-gray-800 bg-[#080808] rounded-xl p-4 sm:p-5 mb-6">
-          <div className="flex flex-col lg:flex-row gap-3">
-            {/* Search */}
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
               <Search
                 size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
 
               <input
@@ -168,94 +345,145 @@ export default function DoctorsPage() {
                   setSearch(e.target.value)
                 }
                 placeholder="Search doctor, specialization..."
-                className="w-full bg-black border border-gray-800 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-gray-600"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#075db5] focus:bg-white focus:ring-2 focus:ring-blue-50"
               />
             </div>
 
-            {/* Department */}
             <div className="relative lg:w-64">
               <select
                 value={department}
                 onChange={(e) =>
                   setDepartment(e.target.value)
                 }
-                className="w-full appearance-none bg-black border border-gray-800 rounded-lg px-4 py-3 text-sm text-gray-300 outline-none focus:border-gray-600"
+                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-[13px] text-slate-700 outline-none transition focus:border-[#075db5] focus:bg-white focus:ring-2 focus:ring-blue-50"
               >
+                <option value="All">
+                  All Departments
+                </option>
+
                 {departments.map((item) => (
                   <option
-                    key={item}
-                    value={item}
-                    className="bg-black"
+                    key={
+                      item?._id ||
+                      item?.id
+                    }
+                    value={item?.name}
                   >
-                    {item === "All"
-                      ? "All Departments"
-                      : item}
+                    {item?.name}
                   </option>
                 ))}
               </select>
 
               <Filter
                 size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
             </div>
 
-            {/* Mobile Filter Button */}
             <button
+              type="button"
               onClick={() =>
                 setShowFilter(!showFilter)
               }
-              className="lg:hidden flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-gray-800 text-sm text-gray-400 hover:text-white hover:bg-gray-900"
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-[13px] font-medium text-slate-600 transition hover:bg-slate-50 lg:hidden"
             >
               <Filter size={17} />
               Filters
             </button>
           </div>
 
-          {/* Department Pills */}
           <div
-            className={`${
-              showFilter ? "flex" : "hidden"
-            } lg:flex flex-wrap gap-2 mt-4`}
+            className={`
+              ${
+                showFilter
+                  ? "flex"
+                  : "hidden"
+              }
+              mt-4
+              flex-wrap
+              gap-2
+              lg:flex
+            `}
           >
+            <button
+              type="button"
+              onClick={() => {
+                setDepartment("All");
+                setShowFilter(false);
+              }}
+              className={`
+                rounded-lg
+                border
+                px-3
+                py-2
+                text-xs
+                font-medium
+                transition
+                ${
+                  department === "All"
+                    ? "border-[#075db5] bg-[#075db5] text-white"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900"
+                }
+              `}
+            >
+              All
+            </button>
+
             {departments.map((item) => (
               <button
-                key={item}
+                type="button"
+                key={
+                  item?._id ||
+                  item?.id
+                }
                 onClick={() => {
-                  setDepartment(item);
+                  setDepartment(item?.name);
                   setShowFilter(false);
                 }}
-                className={`px-3 py-2 rounded-lg border text-xs transition ${
-                  department === item
-                    ? "bg-white text-black border-white"
-                    : "border-gray-800 text-gray-500 hover:text-white hover:border-gray-600"
-                }`}
+                className={`
+                  rounded-lg
+                  border
+                  px-3
+                  py-2
+                  text-xs
+                  font-medium
+                  transition
+                  ${
+                    department ===
+                    item?.name
+                      ? "border-[#075db5] bg-[#075db5] text-white"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900"
+                  }
+                `}
               >
-                {item}
+                {item?.name}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Results Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-slate-900">
               Available Doctors
             </h2>
 
-            <p className="text-xs text-gray-600 mt-1">
-              Showing {filteredDoctors.length} doctors
+            <p className="mt-1 text-[12px] leading-5 text-slate-500">
+              {loading
+                ? "Loading doctors..."
+                : `Showing ${filteredDoctors.length} doctors`}
             </p>
           </div>
 
-          {(search || department !== "All") && (
+          {(search ||
+            department !== "All") && (
             <button
+              type="button"
               onClick={() => {
                 setSearch("");
                 setDepartment("All");
               }}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white"
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-[#075db5]"
             >
               <X size={14} />
               Clear Filters
@@ -263,30 +491,57 @@ export default function DoctorsPage() {
           )}
         </div>
 
-        {/* Doctors */}
-        {filteredDoctors.length > 0 ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {loading ? (
+          <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2
+                size={28}
+                className="animate-spin text-[#075db5]"
+              />
+
+              <p className="text-[13px] text-slate-500">
+                Loading doctors...
+              </p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-red-50 text-red-500">
+              <Stethoscope size={25} />
+            </div>
+
+            <h3 className="mt-4 text-[13px] font-semibold tracking-[-0.01em] text-slate-900">
+              Unable to load doctors
+            </h3>
+
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              {error}
+            </p>
+          </div>
+        ) : filteredDoctors.length > 0 ? (
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             {filteredDoctors.map((doctor) => (
               <DoctorCard
-                key={doctor.id}
+                key={
+                  doctor?._id ||
+                  doctor?.id ||
+                  `${doctor?.firstName}-${doctor?.lastName}`
+                }
                 doctor={doctor}
               />
             ))}
           </div>
         ) : (
-          <div className="border border-gray-800 bg-[#080808] rounded-xl py-16 text-center">
-            <div className="w-14 h-14 mx-auto rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center">
-              <Stethoscope
-                size={25}
-                className="text-gray-600"
-              />
+          <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-slate-50 text-slate-400">
+              <Stethoscope size={25} />
             </div>
 
-            <h3 className="text-sm font-medium mt-4">
+            <h3 className="mt-4 text-[13px] font-semibold tracking-[-0.01em] text-slate-900">
               No doctors found
             </h3>
 
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="mt-2 text-xs leading-5 text-slate-500">
               Try changing your search or department filter.
             </p>
           </div>
@@ -296,116 +551,177 @@ export default function DoctorsPage() {
   );
 }
 
-/* Doctor Card */
-
 function DoctorCard({ doctor }) {
-  const isToday =
-    doctor.availability === "Available Today";
+  const doctorName = getDoctorName(doctor);
+
+  const specialization =
+    getSpecialization(doctor);
+
+  const departmentName =
+    getDepartmentName(doctor);
+
+  const image = getDoctorImage(
+    doctor?.profileImage
+  );
+
+  const availability =
+    getNextAvailability(doctor);
+
+  const doctorId =
+    doctor?._id || doctor?.id;
 
   return (
-    <div className="border border-gray-800 bg-[#080808] rounded-xl p-5 hover:border-gray-700 transition">
-      {/* Top */}
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center shrink-0">
-          <Stethoscope
-            size={26}
-            className="text-gray-300"
-          />
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+          {image ? (
+            <img
+              src={image}
+              alt={doctorName}
+              className="h-full w-full object-cover object-top"
+              onError={(e) => {
+                e.currentTarget.style.display =
+                  "none";
+              }}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <UserRound
+                size={30}
+                strokeWidth={1.4}
+                className="text-slate-300"
+              />
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-            <div>
-              <h3 className="font-semibold">
-                {doctor.name}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="truncate text-[15px] font-semibold tracking-[-0.015em] text-slate-900">
+                {doctorName}
               </h3>
 
-              <p className="text-sm text-gray-500 mt-1">
-                {doctor.specialization}
+              <p className="mt-1 text-[13px] leading-5 text-slate-500">
+                {specialization}
               </p>
             </div>
 
-            <span className="w-fit flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-900 border border-gray-800 text-xs text-gray-400">
-              <Star
-                size={12}
-                className="fill-current"
-              />
-              {doctor.rating}
-            </span>
+            {doctor?.rating && (
+              <span className="flex w-fit shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-600">
+                <Star
+                  size={12}
+                  className="fill-current"
+                />
+
+                {doctor.rating}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <InfoItem
           label="Experience"
-          value={doctor.experience}
+          value={getExperience(doctor)}
         />
 
         <InfoItem
-          label="Patients"
-          value={doctor.patients}
-        />
-
-        <InfoItem
-          label="Fee"
-          value={doctor.fee}
+          label="Consultation"
+          value={getFee(doctor)}
         />
 
         <InfoItem
           label="Department"
-          value={doctor.department}
+          value={departmentName}
+        />
+
+        <InfoItem
+          label="Location"
+          value="Yash Hospital, Jaipur"
         />
       </div>
 
-      {/* Location */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 mt-5">
-        <MapPin size={14} />
-        {doctor.location}
+      <div className="mt-5 flex items-center gap-2 text-xs text-slate-500">
+        <MapPin
+          size={14}
+          className="shrink-0 text-slate-400"
+        />
+
+        <span className="truncate">
+          Yash Hospital, Jaipur
+        </span>
       </div>
 
-      {/* Availability */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 p-3 rounded-lg bg-gray-900 border border-gray-800">
+      <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              isToday
-                ? "bg-green-400"
-                : "bg-yellow-400"
-            }`}
+          <span
+            className={`
+              h-2
+              w-2
+              shrink-0
+              rounded-full
+              ${
+                availability.available
+                  ? "bg-emerald-500"
+                  : "bg-slate-400"
+              }
+            `}
           />
 
           <span
-            className={`text-xs ${
-              isToday
-                ? "text-green-400"
-                : "text-yellow-400"
-            }`}
+            className={`
+              text-xs
+              font-medium
+              ${
+                availability.available
+                  ? "text-emerald-600"
+                  : "text-slate-500"
+              }
+            `}
           >
-            {doctor.availability}
+            {availability.text}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Clock size={14} />
-          Next slot: {doctor.nextSlot}
-        </div>
+        {availability.slot && (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Clock size={14} />
+
+            <span>
+              Next slot: {availability.slot}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-2 mt-5">
-        <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-800 text-sm text-gray-400 hover:text-white hover:bg-gray-900 transition">
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <Link
+          href={
+            doctorId
+              ? `/patient/doctors/${doctorId}`
+              : "#"
+          }
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-medium tracking-[-0.005em] text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+        >
           <UserRound size={16} />
+
           View Profile
-        </button>
+        </Link>
 
         <Link
-          href="/patient/book-appointment"
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white text-black text-sm font-medium hover:bg-gray-200 transition"
+          href={
+            doctorId
+              ? `/appointment/details/?doctor=${doctorId}`
+              : "#"
+          }
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#075db5] px-4 py-2.5 text-[13px] font-medium tracking-[-0.005em] text-white shadow-sm transition hover:bg-[#064f9a]"
         >
           <CalendarDays size={16} />
+
           Book Appointment
+
           <ChevronRight size={15} />
         </Link>
       </div>
@@ -413,16 +729,14 @@ function DoctorCard({ doctor }) {
   );
 }
 
-/* Info Item */
-
 function InfoItem({ label, value }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-      <p className="text-[10px] text-gray-600">
+    <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-slate-400">
         {label}
       </p>
 
-      <p className="text-xs text-gray-300 font-medium mt-1 truncate">
+      <p className="mt-1 truncate text-[12px] font-semibold tracking-[-0.005em] text-slate-700">
         {value}
       </p>
     </div>

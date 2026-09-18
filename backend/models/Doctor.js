@@ -2,18 +2,14 @@ const mongoose = require("mongoose");
 
 const doctorSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // PROFILE IMAGE
-    // ==========================================
+    // Profile Image
     profileImage: {
       type: String,
       default: "",
       trim: true,
     },
 
-    // ==========================================
-    // PERSONAL DETAILS
-    // ==========================================
+    // Personal Details
     firstName: {
       type: String,
       required: true,
@@ -52,9 +48,7 @@ const doctorSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // LOGIN CREDENTIALS
-    // ==========================================
+    // Login Credentials
     username: {
       type: String,
       unique: true,
@@ -69,11 +63,7 @@ const doctorSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ==========================================
-    // PROFESSIONAL DETAILS
-    // ==========================================
-
-    // Doctor can have multiple specializations
+    // Professional Details
     specialization: {
       type: [String],
       required: true,
@@ -86,7 +76,6 @@ const doctorSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Doctor can have multiple qualifications
     qualification: {
       type: [String],
       required: true,
@@ -112,9 +101,7 @@ const doctorSchema = new mongoose.Schema(
       index: true,
     },
 
-    // ==========================================
-    // DOCTOR AVAILABILITY
-    // ==========================================
+    // Doctor Availability
     availability: [
       {
         day: {
@@ -131,9 +118,7 @@ const doctorSchema = new mongoose.Schema(
           required: true,
         },
 
-        // ======================================
-        // HOSPITAL VISIT
-        // ======================================
+        // Hospital Visit
         hospital: {
           enabled: {
             type: Boolean,
@@ -144,20 +129,20 @@ const doctorSchema = new mongoose.Schema(
             {
               startTime: {
                 type: String,
+                required: true,
                 trim: true,
               },
 
               endTime: {
                 type: String,
+                required: true,
                 trim: true,
               },
             },
           ],
         },
 
-        // ======================================
-        // VIDEO CONSULTATION
-        // ======================================
+        // Video Consultation
         video: {
           enabled: {
             type: Boolean,
@@ -168,11 +153,13 @@ const doctorSchema = new mongoose.Schema(
             {
               startTime: {
                 type: String,
+                required: true,
                 trim: true,
               },
 
               endTime: {
                 type: String,
+                required: true,
                 trim: true,
               },
             },
@@ -181,27 +168,22 @@ const doctorSchema = new mongoose.Schema(
       },
     ],
 
-    // ==========================================
-    // APPOINTMENT DURATION
-    // ==========================================
+    // Appointment Duration in Minutes
     appointmentDuration: {
       type: Number,
       enum: [15, 30, 45, 60],
       default: 30,
+      required: true,
     },
 
-    // ==========================================
-    // DOCTOR STATUS
-    // ==========================================
+    // Doctor Active / Inactive
     status: {
       type: Boolean,
       default: true,
       index: true,
     },
 
-    // ==========================================
-    // ADDRESS
-    // ==========================================
+    // Address
     address: {
       fullAddress: {
         type: String,
@@ -233,6 +215,9 @@ const doctorSchema = new mongoose.Schema(
   }
 );
 
-const Doctor = mongoose.model("Doctor", doctorSchema);
+const Doctor = mongoose.model(
+  "Doctor",
+  doctorSchema
+);
 
 module.exports = Doctor;

@@ -6,16 +6,22 @@ import { client } from "@/app/components/healper";
 
 export const createAppointment = async (data) => {
   try {
-    const response = await client.post(
-      "appointments",
-      data
-    );
+    console.log("CREATE APPOINTMENT DATA:", data);
+
+    const response = await client.post("appointments", data);
+
+    console.log("CREATE APPOINTMENT RESPONSE:", response.data);
 
     return response.data;
   } catch (error) {
+    console.error("CREATE APPOINTMENT ERROR:", error);
     console.error(
-      "CREATE APPOINTMENT ERROR:",
-      error
+      "BACKEND ERROR:",
+      error.response?.data
+    );
+    console.error(
+      "STATUS:",
+      error.response?.status
     );
 
     throw (
@@ -142,15 +148,18 @@ export const completePatientProfile = async (data) => {
       error
     );
 
-    throw error;
+    throw (
+      error.response?.data || {
+        success: false,
+        message: "Failed to complete patient profile",
+      }
+    );
   }
 };
 
 // =====================================================
 // CREATE PATIENT DEPENDENT
 // =====================================================
-// Logged-in patient ke under new patient add karega
-// POST /api/auth/patient/dependent
 
 export const createPatientDependent = async (data) => {
   try {
@@ -190,8 +199,6 @@ export const createPatientDependent = async (data) => {
 // =====================================================
 // GET MY PATIENTS
 // =====================================================
-// Logged-in patient + uske added dependents
-// GET /api/auth/patient/my-patients
 
 export const getMyPatients = async () => {
   try {

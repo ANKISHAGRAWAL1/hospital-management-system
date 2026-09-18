@@ -1,847 +1,668 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Activity,
-  AlertCircle,
-  CalendarDays,
-  ChevronRight,
-  ClipboardList,
-  Clock3,
-  FileText,
-  HeartPulse,
-  Hospital,
-  Search,
-  ShieldAlert,
-  Stethoscope,
   UserRound,
-  X,
+  Mail,
+  Phone,
+  CalendarDays,
+  MapPin,
+  Droplets,
+  ShieldCheck,
+  Camera,
+  Save,
+  Loader2,
+  HeartPulse,
+  UsersRound,
+  ArrowLeft,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
-const consultations = [
-  {
-    id: "CON-20260818-001",
-    date: "18 Aug 2026",
-    doctor: "Dr. Rahul Sharma",
-    specialization: "Cardiologist",
-    hospital: "City Hospital, Jaipur",
-    diagnosis: "Mild Hypertension",
-    reason: "Routine cardiac consultation",
-    status: "Completed",
-    notes:
-      "Blood pressure slightly elevated. Continue medication and monitor BP regularly.",
-    vitals: {
-      bloodPressure: "138/88 mmHg",
-      pulse: "78 bpm",
-      temperature: "98.4 °F",
-      weight: "68 kg",
-      oxygen: "98%",
-    },
-  },
-  {
-    id: "CON-20260810-002",
-    date: "10 Aug 2026",
-    doctor: "Dr. Amit Verma",
-    specialization: "General Medicine",
-    hospital: "City Hospital, Jaipur",
-    diagnosis: "Viral Fever",
-    reason: "Fever and body ache",
-    status: "Completed",
-    notes:
-      "Patient advised rest, hydration and prescribed medication for five days.",
-    vitals: {
-      bloodPressure: "124/82 mmHg",
-      pulse: "82 bpm",
-      temperature: "100.2 °F",
-      weight: "68.5 kg",
-      oxygen: "97%",
-    },
-  },
-  {
-    id: "CON-20260725-003",
-    date: "25 Jul 2026",
-    doctor: "Dr. Neha Gupta",
-    specialization: "Neurologist",
-    hospital: "Metro Care Hospital, Jaipur",
-    diagnosis: "Migraine",
-    reason: "Recurring headache",
-    status: "Completed",
-    notes:
-      "Migraine triggers discussed. Patient advised adequate sleep and hydration.",
-    vitals: {
-      bloodPressure: "120/80 mmHg",
-      pulse: "76 bpm",
-      temperature: "98.2 °F",
-      weight: "69 kg",
-      oxygen: "99%",
-    },
-  },
-  {
-    id: "CON-20260712-004",
-    date: "12 Jul 2026",
-    doctor: "Dr. Priya Mehta",
-    specialization: "Dermatologist",
-    hospital: "City Hospital, Jaipur",
-    diagnosis: "Skin Irritation",
-    reason: "Skin redness and itching",
-    status: "Completed",
-    notes:
-      "Allergic reaction suspected. Medication prescribed and follow-up advised.",
-    vitals: {
-      bloodPressure: "122/80 mmHg",
-      pulse: "75 bpm",
-      temperature: "98.1 °F",
-      weight: "69 kg",
-      oxygen: "98%",
-    },
-  },
-];
+import {
+  getPatientProfile,
+  updatePatientProfile,
+} from "@/app/components/utils/Api-call/patient/profile-api";
 
-const conditions = [
-  {
-    name: "Mild Hypertension",
-    since: "Aug 2026",
-    status: "Under Monitoring",
-  },
-  {
-    name: "Migraine",
-    since: "Jul 2026",
-    status: "Managed",
-  },
-];
+const SERVER_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "") ||
+  "http://localhost:5000";
 
-const allergies = [
-  {
-    name: "Dust",
-    reaction: "Sneezing / Nasal irritation",
-    severity: "Moderate",
-  },
-  {
-    name: "Penicillin",
-    reaction: "Skin rash",
-    severity: "Severe",
-  },
-];
+const getProfileImage = (image) => {
+  if (!image) return "";
 
-const procedures = [
-  {
-    name: "Appendectomy",
-    date: "12 Mar 2021",
-    hospital: "City Hospital, Jaipur",
-    doctor: "Dr. Rajiv Meena",
-  },
-];
+  if (
+    image.startsWith("http://") ||
+    image.startsWith("https://") ||
+    image.startsWith("data:")
+  ) {
+    return image;
+  }
 
-const vitalsHistory = [
-  {
-    date: "18 Aug 2026",
-    bloodPressure: "138/88",
-    pulse: "78",
-    weight: "68 kg",
-    oxygen: "98%",
-  },
-  {
-    date: "10 Aug 2026",
-    bloodPressure: "124/82",
-    pulse: "82",
-    weight: "68.5 kg",
-    oxygen: "97%",
-  },
-  {
-    date: "25 Jul 2026",
-    bloodPressure: "120/80",
-    pulse: "76",
-    weight: "69 kg",
-    oxygen: "99%",
-  },
-];
+  return `${SERVER_URL}/${image.replace(/^\/+/, "")}`;
+};
 
-export default function MedicalHistoryPage() {
-  const [search, setSearch] = useState("");
-  const [selectedConsultation, setSelectedConsultation] =
-    useState(null);
+const getDateValue = (date) => {
+  if (!date) return "";
 
-  const filteredConsultations = useMemo(() => {
-    const query = search.toLowerCase().trim();
+  const parsedDate = new Date(date);
 
-    if (!query) return consultations;
+  if (Number.isNaN(parsedDate.getTime())) return "";
 
-    return consultations.filter((item) => {
-      return (
-        item.id.toLowerCase().includes(query) ||
-        item.doctor.toLowerCase().includes(query) ||
-        item.specialization.toLowerCase().includes(query) ||
-        item.hospital.toLowerCase().includes(query) ||
-        item.diagnosis.toLowerCase().includes(query) ||
-        item.reason.toLowerCase().includes(query)
+  return parsedDate.toISOString().split("T")[0];
+};
+
+export default function PatientProfilePage() {
+  const router = useRouter();
+  const fileInputRef = useRef(null);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [profile, setProfile] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    gender: "",
+    bloodGroup: "",
+    address: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelationship: "",
+    profileImage: "",
+  });
+
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewImage, setPreviewImage] = useState("");
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+
+      const response = await getPatientProfile();
+      const data = response?.data;
+
+      if (!data) {
+        toast.error("Patient profile not found");
+        return;
+      }
+
+      setProfile({
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        dateOfBirth: getDateValue(data.dateOfBirth),
+        gender: data.gender || "",
+        bloodGroup: data.bloodGroup || "",
+        address: data.address || "",
+        emergencyContactName: data.emergencyContact?.name || "",
+        emergencyContactPhone: data.emergencyContact?.phone || "",
+        emergencyContactRelationship:
+          data.emergencyContact?.relationship || "",
+        profileImage: data.profileImage || "",
+      });
+
+      if (data.profileImage) {
+        setPreviewImage(getProfileImage(data.profileImage));
+      }
+    } catch (error) {
+      console.error("LOAD PATIENT PROFILE ERROR:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to load patient profile"
       );
-    });
-  }, [search]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setProfile((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5 MB");
+      return;
+    }
+
+    setSelectedImage(file);
+
+    const imageUrl = URL.createObjectURL(file);
+    setPreviewImage(imageUrl);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+
+    if (!profile.name.trim()) {
+      toast.error("Patient name is required");
+      return;
+    }
+
+    if (!profile.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("name", profile.name.trim());
+    formData.append("email", profile.email.trim());
+    formData.append("phone", profile.phone.trim());
+    formData.append("dateOfBirth", profile.dateOfBirth || "");
+    formData.append("gender", profile.gender || "");
+    formData.append("bloodGroup", profile.bloodGroup || "");
+    formData.append("address", profile.address.trim());
+
+    formData.append(
+      "emergencyContactName",
+      profile.emergencyContactName.trim()
+    );
+
+    formData.append(
+      "emergencyContactPhone",
+      profile.emergencyContactPhone.trim()
+    );
+
+    formData.append(
+      "emergencyContactRelationship",
+      profile.emergencyContactRelationship.trim()
+    );
+
+    if (selectedImage) {
+      formData.append("profileImage", selectedImage);
+    }
+
+    try {
+      setSaving(true);
+
+      const response = await updatePatientProfile(formData);
+
+      const updatedData = response?.data;
+
+      if (updatedData) {
+        setProfile({
+          name: updatedData.name || "",
+          email: updatedData.email || "",
+          phone: updatedData.phone || "",
+          dateOfBirth: getDateValue(updatedData.dateOfBirth),
+          gender: updatedData.gender || "",
+          bloodGroup: updatedData.bloodGroup || "",
+          address: updatedData.address || "",
+          emergencyContactName:
+            updatedData.emergencyContact?.name || "",
+          emergencyContactPhone:
+            updatedData.emergencyContact?.phone || "",
+          emergencyContactRelationship:
+            updatedData.emergencyContact?.relationship || "",
+          profileImage: updatedData.profileImage || "",
+        });
+
+        if (updatedData.profileImage) {
+          setPreviewImage(getProfileImage(updatedData.profileImage));
+        }
+      }
+
+      setSelectedImage(null);
+
+      toast.success(
+        response?.message || "Profile updated successfully"
+      );
+    } catch (error) {
+      console.error("SAVE PATIENT PROFILE ERROR:", error);
+
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to update profile"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getInitials = () => {
+    if (!profile.name) return "P";
+
+    return profile.name
+      .trim()
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase())
+      .join("");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+          <p className="text-sm text-slate-500">
+            Loading your profile...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <main className="p-4 sm:p-6">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-teal-600 hover:border-teal-200 transition"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
 
-        {/* PAGE HEADER */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <div className="flex items-center gap-2">
-              <ClipboardList
-                size={22}
-                className="text-gray-400"
-              />
-
-              <h1 className="text-xl sm:text-2xl font-semibold">
-                Medical History
-              </h1>
-            </div>
-
-            <p className="text-sm text-gray-500 mt-2">
-              View your consultations, diagnoses, conditions,
-              allergies and health history.
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+              My Profile
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Manage your personal and emergency contact information
             </p>
           </div>
-
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <FileText size={15} />
-            Patient ID: PAT-10024
-          </div>
         </div>
 
-        {/* PATIENT OVERVIEW */}
-        <div className="border border-gray-800 bg-[#080808] rounded-xl p-5 sm:p-6 mb-6">
-          <div className="flex flex-col xl:flex-row xl:items-center gap-6">
+        <form onSubmit={handleSave}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="h-24 bg-gradient-to-r from-teal-600 to-cyan-600" />
 
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center">
-                <UserRound
-                  size={27}
-                  className="text-gray-400"
-                />
-              </div>
+                <div className="px-6 pb-6">
+                  <div className="relative -mt-12 flex justify-center">
+                    <div className="relative">
+                      <div className="w-28 h-28 rounded-full bg-white p-1.5 shadow-lg">
+                        <div className="w-full h-full rounded-full overflow-hidden bg-teal-50 flex items-center justify-center">
+                          {previewImage ? (
+                            <img
+                              src={previewImage}
+                              alt="Patient profile"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-3xl font-bold text-teal-600">
+                              {getInitials()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-              <div>
-                <h2 className="text-lg font-semibold">
-                  Ankish Gupta
-                </h2>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute right-0 bottom-1 w-9 h-9 rounded-full bg-teal-600 text-white border-4 border-white flex items-center justify-center hover:bg-teal-700 transition shadow-sm"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
 
-                <p className="text-xs text-gray-500 mt-1">
-                  Patient ID: PAT-10024
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 xl:ml-auto">
-              <OverviewItem
-                label="Blood Group"
-                value="B+"
-              />
-
-              <OverviewItem
-                label="Age"
-                value="24 Years"
-              />
-
-              <OverviewItem
-                label="Height"
-                value="172 cm"
-              />
-
-              <OverviewItem
-                label="Weight"
-                value="68 kg"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ALERTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-
-          {/* Allergies */}
-          <div className="border border-red-500/20 bg-red-500/[0.03] rounded-xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                <ShieldAlert
-                  size={18}
-                  className="text-red-400"
-                />
-              </div>
-
-              <div>
-                <h2 className="text-sm font-semibold">
-                  Known Allergies
-                </h2>
-
-                <p className="text-xs text-gray-600 mt-1">
-                  Important information for healthcare providers
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {allergies.map((allergy) => (
-                <div
-                  key={allergy.name}
-                  className="border border-gray-800 bg-black/30 rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">
-                      {allergy.name}
-                    </p>
-
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
-                      {allergy.severity}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-2">
-                    Reaction: {allergy.reaction}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Conditions */}
-          <div className="border border-gray-800 bg-[#080808] rounded-xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-gray-900 border border-gray-800 flex items-center justify-center">
-                <Activity
-                  size={18}
-                  className="text-gray-400"
-                />
-              </div>
-
-              <div>
-                <h2 className="text-sm font-semibold">
-                  Chronic / Existing Conditions
-                </h2>
-
-                <p className="text-xs text-gray-600 mt-1">
-                  Conditions currently recorded in your profile
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {conditions.map((condition) => (
-                <div
-                  key={condition.name}
-                  className="border border-gray-800 rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">
-                      {condition.name}
-                    </p>
-
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-gray-900 text-gray-400 border border-gray-800">
-                      {condition.status}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-gray-600 mt-2">
-                    Since: {condition.since}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* PROCEDURES */}
-        <section className="border border-gray-800 bg-[#080808] rounded-xl p-5 sm:p-6 mb-6">
-          <SectionHeader
-            icon={Hospital}
-            title="Surgeries & Procedures"
-            description="Previous surgeries and major medical procedures"
-          />
-
-          <div className="mt-5 space-y-3">
-            {procedures.map((procedure) => (
-              <div
-                key={procedure.name}
-                className="border border-gray-800 rounded-lg p-4"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium">
-                      {procedure.name}
-                    </h3>
-
-                    <div className="flex flex-wrap gap-4 mt-2 text-xs text-gray-600">
-                      <span className="flex items-center gap-1.5">
-                        <CalendarDays size={13} />
-                        {procedure.date}
-                      </span>
-
-                      <span className="flex items-center gap-1.5">
-                        <Hospital size={13} />
-                        {procedure.hospital}
-                      </span>
-
-                      <span className="flex items-center gap-1.5">
-                        <UserRound size={13} />
-                        {procedure.doctor}
-                      </span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
                     </div>
                   </div>
 
-                  <span className="text-[10px] px-2.5 py-1 rounded-full border border-gray-800 bg-gray-900 text-gray-500">
-                    Historical
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+                  <div className="text-center mt-4">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      {profile.name || "Patient"}
+                    </h2>
 
-        {/* VITALS */}
-        <section className="border border-gray-800 bg-[#080808] rounded-xl p-5 sm:p-6 mb-6">
-          <SectionHeader
-            icon={HeartPulse}
-            title="Vitals History"
-            description="Recent recorded vital signs"
-          />
+                    <p className="text-sm text-slate-500 mt-1">
+                      {profile.email || "Patient Account"}
+                    </p>
 
-          <div className="overflow-x-auto mt-5">
-            <table className="w-full min-w-[650px]">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium py-3">
-                    Date
-                  </th>
+                    <div className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Patient Account
+                    </div>
+                  </div>
 
-                  <th className="text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium py-3">
-                    Blood Pressure
-                  </th>
+                  <div className="mt-6 pt-6 border-t border-slate-100 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center">
+                        <Mail className="w-4 h-4 text-slate-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-400">
+                          Email
+                        </p>
+                        <p className="text-sm text-slate-700 truncate">
+                          {profile.email || "Not added"}
+                        </p>
+                      </div>
+                    </div>
 
-                  <th className="text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium py-3">
-                    Pulse
-                  </th>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center">
+                        <Phone className="w-4 h-4 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-400">
+                          Phone
+                        </p>
+                        <p className="text-sm text-slate-700">
+                          {profile.phone || "Not added"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-                  <th className="text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium py-3">
-                    Weight
-                  </th>
-
-                  <th className="text-left text-[10px] uppercase tracking-wide text-gray-600 font-medium py-3">
-                    SpO₂
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {vitalsHistory.map((vital) => (
-                  <tr
-                    key={vital.date}
-                    className="border-b border-gray-800 last:border-0"
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full mt-6 h-10 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
-                    <td className="py-4 text-xs text-gray-300">
-                      {vital.date}
-                    </td>
+                    Change Profile Photo
+                  </button>
 
-                    <td className="py-4 text-xs text-gray-400">
-                      {vital.bloodPressure} mmHg
-                    </td>
-
-                    <td className="py-4 text-xs text-gray-400">
-                      {vital.pulse} bpm
-                    </td>
-
-                    <td className="py-4 text-xs text-gray-400">
-                      {vital.weight}
-                    </td>
-
-                    <td className="py-4 text-xs text-gray-400">
-                      {vital.oxygen}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* CONSULTATIONS */}
-        <section className="border border-gray-800 bg-[#080808] rounded-xl">
-          <div className="p-5 sm:p-6 border-b border-gray-800">
-            <SectionHeader
-              icon={Stethoscope}
-              title="Consultation History"
-              description="Your previous doctor visits and diagnoses"
-            />
-
-            <div className="relative mt-5">
-              <Search
-                size={17}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600"
-              />
-
-              <input
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="Search doctor, diagnosis, hospital or consultation..."
-                className="w-full bg-black border border-gray-800 rounded-lg pl-10 pr-10 py-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-gray-600"
-              />
-
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="p-5 sm:p-6">
-            {filteredConsultations.length > 0 ? (
-              <div className="relative">
-
-                {/* Timeline Line */}
-                <div className="absolute left-[19px] top-3 bottom-3 w-px bg-gray-800 hidden sm:block" />
-
-                <div className="space-y-5">
-                  {filteredConsultations.map(
-                    (consultation) => (
-                      <ConsultationCard
-                        key={consultation.id}
-                        consultation={consultation}
-                        onView={() =>
-                          setSelectedConsultation(
-                            consultation
-                          )
-                        }
-                      />
-                    )
-                  )}
+                  <p className="text-[11px] text-center text-slate-400 mt-2">
+                    JPG, PNG or WEBP · Max 5 MB
+                  </p>
                 </div>
               </div>
-            ) : (
-              <EmptyState />
-            )}
-          </div>
-        </section>
-      </main>
-
-      {/* CONSULTATION MODAL */}
-      {selectedConsultation && (
-        <ConsultationModal
-          consultation={selectedConsultation}
-          onClose={() =>
-            setSelectedConsultation(null)
-          }
-        />
-      )}
-    </div>
-  );
-}
-
-/* ================================= */
-/* Consultation Card */
-/* ================================= */
-
-function ConsultationCard({
-  consultation,
-  onView,
-}) {
-  return (
-    <div className="relative sm:pl-12">
-      {/* Timeline Dot */}
-      <div className="hidden sm:flex absolute left-0 top-3 w-10 h-10 rounded-full bg-gray-900 border border-gray-800 items-center justify-center z-10">
-        <Stethoscope
-          size={17}
-          className="text-gray-500"
-        />
-      </div>
-
-      <div className="border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-500">
-                {consultation.date}
-              </span>
-
-              <span className="text-[10px] px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
-                {consultation.status}
-              </span>
             </div>
 
-            <h3 className="text-base font-semibold mt-3">
-              {consultation.diagnosis}
-            </h3>
+            <div className="lg:col-span-2 space-y-6">
+              <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                    <UserRound className="w-5 h-5 text-teal-600" />
+                  </div>
 
-            <p className="text-xs text-gray-500 mt-1">
-              {consultation.reason}
-            </p>
+                  <div>
+                    <h2 className="font-bold text-slate-900">
+                      Personal Information
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Keep your personal details up to date
+                    </p>
+                  </div>
+                </div>
 
-            <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-600">
-              <span className="flex items-center gap-1.5">
-                <UserRound size={13} />
-                {consultation.doctor}
-              </span>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <InputField
+                    label="Full Name"
+                    name="name"
+                    value={profile.name}
+                    onChange={handleChange}
+                    placeholder="Enter your full name"
+                    icon={<UserRound />}
+                    required
+                  />
 
-              <span className="flex items-center gap-1.5">
-                <Stethoscope size={13} />
-                {consultation.specialization}
-              </span>
+                  <InputField
+                    label="Email Address"
+                    name="email"
+                    type="email"
+                    value={profile.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    icon={<Mail />}
+                    required
+                  />
 
-              <span className="flex items-center gap-1.5">
-                <Hospital size={13} />
-                {consultation.hospital}
-              </span>
-            </div>
-          </div>
+                  <InputField
+                    label="Phone Number"
+                    name="phone"
+                    value={profile.phone}
+                    onChange={handleChange}
+                    placeholder="Enter your phone number"
+                    icon={<Phone />}
+                  />
 
-          <button
-            onClick={onView}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-800 text-xs text-gray-400 hover:text-white hover:bg-gray-900 transition"
-          >
-            View Details
-            <ChevronRight size={14} />
-          </button>
-        </div>
+                  <InputField
+                    label="Date of Birth"
+                    name="dateOfBirth"
+                    type="date"
+                    value={profile.dateOfBirth}
+                    onChange={handleChange}
+                    icon={<CalendarDays />}
+                  />
 
-        <div className="border-t border-gray-800 mt-5 pt-4">
-          <p className="text-[10px] uppercase tracking-wide text-gray-600">
-            Doctor's Notes
-          </p>
+                  <SelectField
+                    label="Gender"
+                    name="gender"
+                    value={profile.gender}
+                    onChange={handleChange}
+                    options={[
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                      { value: "other", label: "Other" },
+                    ]}
+                  />
 
-          <p className="text-xs text-gray-500 mt-2 leading-5">
-            {consultation.notes}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
+                  <SelectField
+                    label="Blood Group"
+                    name="bloodGroup"
+                    value={profile.bloodGroup}
+                    onChange={handleChange}
+                    options={[
+                      { value: "A+", label: "A+" },
+                      { value: "A-", label: "A-" },
+                      { value: "B+", label: "B+" },
+                      { value: "B-", label: "B-" },
+                      { value: "AB+", label: "AB+" },
+                      { value: "AB-", label: "AB-" },
+                      { value: "O+", label: "O+" },
+                      { value: "O-", label: "O-" },
+                    ]}
+                    icon={<Droplets />}
+                  />
 
-/* ================================= */
-/* Consultation Modal */
-/* ================================= */
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Address
+                    </label>
 
-function ConsultationModal({
-  consultation,
-  onClose,
-}) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#080808] border border-gray-800 rounded-xl">
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
 
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-[#080808] border-b border-gray-800 px-5 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">
-              Consultation Details
-            </h2>
+                      <textarea
+                        name="address"
+                        value={profile.address}
+                        onChange={handleChange}
+                        placeholder="Enter your address"
+                        rows={4}
+                        className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50 resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-            <p className="text-xs text-gray-600 mt-1">
-              {consultation.id}
-            </p>
-          </div>
+              <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                    <HeartPulse className="w-5 h-5 text-rose-600" />
+                  </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-gray-900"
-          >
-            <X size={18} />
-          </button>
-        </div>
+                  <div>
+                    <h2 className="font-bold text-slate-900">
+                      Emergency Contact
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Someone we can contact in an emergency
+                    </p>
+                  </div>
+                </div>
 
-        <div className="p-5">
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <InputField
+                    label="Contact Name"
+                    name="emergencyContactName"
+                    value={profile.emergencyContactName}
+                    onChange={handleChange}
+                    placeholder="Enter contact name"
+                    icon={<UsersRound />}
+                  />
 
-          {/* Doctor */}
-          <div className="border border-gray-800 rounded-xl p-5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center">
-                <UserRound
-                  size={22}
-                  className="text-gray-400"
-                />
+                  <InputField
+                    label="Contact Phone"
+                    name="emergencyContactPhone"
+                    value={profile.emergencyContactPhone}
+                    onChange={handleChange}
+                    placeholder="Enter contact phone"
+                    icon={<Phone />}
+                  />
+
+                  <InputField
+                    label="Relationship"
+                    name="emergencyContactRelationship"
+                    value={profile.emergencyContactRelationship}
+                    onChange={handleChange}
+                    placeholder="e.g. Father, Mother, Brother"
+                    icon={<UsersRound />}
+                  />
+                </div>
+              </section>
+
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Save your changes
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Your updated information will be saved securely.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full sm:w-auto min-w-[160px] h-11 px-6 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white text-sm font-semibold flex items-center justify-center gap-2 transition shadow-sm"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
               </div>
-
-              <div>
-                <h3 className="text-sm font-semibold">
-                  {consultation.doctor}
-                </h3>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  {consultation.specialization}
-                </p>
-
-                <p className="text-xs text-gray-600 mt-1">
-                  {consultation.hospital}
-                </p>
-              </div>
             </div>
           </div>
-
-          {/* Visit Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
-            <InfoBox
-              label="Visit Date"
-              value={consultation.date}
-            />
-
-            <InfoBox
-              label="Diagnosis"
-              value={consultation.diagnosis}
-            />
-
-            <InfoBox
-              label="Visit Reason"
-              value={consultation.reason}
-            />
-          </div>
-
-          {/* Vitals */}
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold mb-3">
-              Recorded Vitals
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <InfoBox
-                label="Blood Pressure"
-                value={consultation.vitals.bloodPressure}
-              />
-
-              <InfoBox
-                label="Pulse"
-                value={consultation.vitals.pulse}
-              />
-
-              <InfoBox
-                label="Temperature"
-                value={consultation.vitals.temperature}
-              />
-
-              <InfoBox
-                label="Weight"
-                value={consultation.vitals.weight}
-              />
-
-              <InfoBox
-                label="SpO₂"
-                value={consultation.vitals.oxygen}
-              />
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="border border-gray-800 rounded-xl p-5 mt-5">
-            <div className="flex items-center gap-2">
-              <FileText
-                size={17}
-                className="text-gray-500"
-              />
-
-              <h3 className="text-sm font-medium">
-                Clinical Notes
-              </h3>
-            </div>
-
-            <p className="text-xs text-gray-500 mt-3 leading-6">
-              {consultation.notes}
-            </p>
-          </div>
-
-          {/* Footer */}
-          <div className="flex justify-end mt-5">
-            <button
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-lg border border-gray-800 text-sm text-gray-400 hover:text-white hover:bg-gray-900 transition"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
 
-/* ================================= */
-/* Small Components */
-/* ================================= */
-
-function SectionHeader({
-  icon: Icon,
-  title,
-  description,
+function InputField({
+  label,
+  name,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+  icon,
+  required = false,
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-gray-900 border border-gray-800 flex items-center justify-center">
-        <Icon
-          size={18}
-          className="text-gray-400"
+    <div>
+      <label className="block text-sm font-semibold text-slate-700 mb-2">
+        {label}
+        {required && <span className="text-rose-500 ml-1">*</span>}
+      </label>
+
+      <div className="relative">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          {icon &&
+            typeof icon.type !== "undefined" &&
+            Object.cloneElement?.(icon, {
+              className: "w-4 h-4",
+            })}
+        </div>
+
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          required={required}
+          className="w-full h-11 rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50"
         />
       </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">
-          {title}
-        </h2>
-
-        <p className="text-xs text-gray-600 mt-1">
-          {description}
-        </p>
-      </div>
     </div>
   );
 }
 
-function OverviewItem({ label, value }) {
+function SelectField({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  icon,
+}) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 min-w-[105px]">
-      <p className="text-[10px] text-gray-600">
+    <div>
+      <label className="block text-sm font-semibold text-slate-700 mb-2">
         {label}
-      </p>
+      </label>
 
-      <p className="text-sm font-medium text-gray-300 mt-1">
-        {value}
-      </p>
-    </div>
-  );
-}
+      <div className="relative">
+        {icon && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            {Object.cloneElement?.(icon, {
+              className: "w-4 h-4",
+            })}
+          </div>
+        )}
 
-function InfoBox({ label, value }) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-      <p className="text-[10px] text-gray-600">
-        {label}
-      </p>
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          className={`w-full h-11 rounded-xl border border-slate-200 bg-white ${
+            icon ? "pl-10" : "pl-4"
+          } pr-4 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-50`}
+        >
+          <option value="">Select {label}</option>
 
-      <p className="text-xs text-gray-300 mt-1">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="py-16 text-center">
-      <div className="w-14 h-14 mx-auto rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center">
-        <ClipboardList
-          size={25}
-          className="text-gray-600"
-        />
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
-
-      <h3 className="text-sm font-medium mt-4">
-        No medical history found
-      </h3>
-
-      <p className="text-xs text-gray-600 mt-2">
-        Try changing your search criteria.
-      </p>
     </div>
   );
 }

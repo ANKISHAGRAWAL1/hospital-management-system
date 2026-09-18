@@ -15,6 +15,8 @@ import {
   LogOut,
   X,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 import PatientHeader from "@/components/pateient/header";
@@ -23,28 +25,20 @@ export default function PatientLayout({ children }) {
   const pathname = usePathname();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // =========================================================
-  // BOOK APPOINTMENT PAGE
-  // HEADER ONLY — NO SIDEBAR
-  // =========================================================
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isBookAppointmentPage =
     pathname === "/patient/book-appointment";
 
-  // =========================================================
-  // PATIENT NAVIGATION
-  // =========================================================
-
   const navItems = [
     {
       label: "Dashboard",
-      href: "/patient/dashboard",
+      href: "/patient",
       icon: LayoutDashboard,
     },
     {
       label: "Book Appointment",
-      href: "/patient/book-appointment",
+      href: "/contappointment",
       icon: CalendarPlus,
     },
     {
@@ -80,10 +74,6 @@ export default function PatientLayout({ children }) {
     },
   ];
 
-  // =========================================================
-  // ACTIVE NAVIGATION
-  // =========================================================
-
   const isActive = (href) => {
     if (href === "/patient/dashboard") {
       return pathname === "/patient/dashboard";
@@ -92,303 +82,283 @@ export default function PatientLayout({ children }) {
     return pathname.startsWith(href);
   };
 
-  // =========================================================
-  // BOOK APPOINTMENT PAGE
-  // HEADER ONLY
-  // =========================================================
-
   if (isBookAppointmentPage) {
     return (
       <div className="min-h-screen bg-[#f8fafc] text-slate-900">
-
-        {/* PATIENT HEADER */}
-
         <PatientHeader />
 
-        {/* PAGE CONTENT */}
-
-        <main className="min-h-[calc(100vh-64px)] pt-16">
+        <main className="min-h-[calc(100vh-64px)] bg-[#f8fafc] pt-16">
           {children}
         </main>
-
       </div>
     );
   }
 
-  // =========================================================
-  // NORMAL PATIENT PORTAL
-  // SIDEBAR + HEADER
-  // =========================================================
-
   return (
-    <div className="min-h-screen bg-black text-white">
-
-      {/* =====================================================
-          MOBILE OVERLAY
-      ===================================================== */}
-
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
-
       <aside
-        className={`
-          fixed
-          left-0
-          top-0
-          z-50
-          flex
-          h-screen
-          w-64
-          flex-col
-          border-r
-          border-white/10
-          bg-[#050505]
-          transition-transform
-          duration-300
-          lg:translate-x-0
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
-          }
-        `}
+        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-slate-200 bg-white shadow-[4px_0_24px_rgba(15,23,42,0.05)] transition-all duration-300 ease-in-out lg:translate-x-0 ${
+          sidebarCollapsed ? "w-[76px]" : "w-64"
+        } ${
+          sidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+        }`}
       >
-
-        {/* ===================================================
-            SIDEBAR HEADER
-        =================================================== */}
-
-        <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
-
+        <div
+          className={`flex h-20 shrink-0 items-center border-b border-slate-200 transition-all duration-300 ${
+            sidebarCollapsed
+              ? "justify-center px-3"
+              : "justify-between px-5"
+          }`}
+        >
           <Link
             href="/patient/dashboard"
+            onClick={() => setSidebarOpen(false)}
             className="flex items-center gap-3"
           >
-
-            {/* LOGO */}
-
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
-
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <img
                 src="/logo/yash-hospital-logo.png"
                 alt="Yash Hospital"
                 className="h-9 w-9 object-contain"
               />
-
             </div>
 
-            {/* HOSPITAL NAME */}
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-bold tracking-tight text-slate-900">
+                  Yash Hospital
+                </h1>
 
-            <div>
-
-              <h1 className="text-sm font-bold text-white">
-                Yash Hospital
-              </h1>
-
-              <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
-                Patient Portal
-              </p>
-
-            </div>
-
+                <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Patient Portal
+                </p>
+              </div>
+            )}
           </Link>
 
-          {/* MOBILE CLOSE */}
-
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-2 text-gray-400 transition hover:bg-white/10 hover:text-white lg:hidden"
-            aria-label="Close menu"
-          >
-            <X size={20} />
-          </button>
-
+          {!sidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+              aria-label="Close menu"
+            >
+              <X size={19} />
+            </button>
+          )}
         </div>
 
-        {/* ===================================================
-            PATIENT PROFILE
-        =================================================== */}
-
-        <div className="border-b border-white/10 px-5 py-5">
-
-          <div className="flex items-center gap-3">
-
-            {/* AVATAR */}
-
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#075db5] text-sm font-semibold text-white">
+        <div
+          className={`shrink-0 border-b border-slate-200 py-5 transition-all duration-300 ${
+            sidebarCollapsed
+              ? "flex justify-center px-2"
+              : "px-5"
+          }`}
+        >
+          <div
+            className={`flex items-center ${
+              sidebarCollapsed
+                ? "justify-center"
+                : "gap-3"
+            }`}
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#075db5] ring-1 ring-blue-100">
               AG
             </div>
 
-            {/* PATIENT DETAILS */}
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  Ankish Gupta
+                </p>
 
-            <div className="min-w-0">
-
-              <p className="truncate text-sm font-semibold text-white">
-                Ankish Gupta
-              </p>
-
-              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                PAT-10024
-              </p>
-
-            </div>
-
+                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                  PAT-10024
+                </p>
+              </div>
+            )}
           </div>
-
         </div>
 
-        {/* ===================================================
-            NAVIGATION
-        =================================================== */}
+        <nav
+          className={`flex-1 overflow-y-auto py-5 ${
+            sidebarCollapsed
+              ? "px-2"
+              : "px-3"
+          }`}
+        >
+          {!sidebarCollapsed && (
+            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+              Patient Menu
+            </p>
+          )}
 
-        <nav className="flex-1 overflow-y-auto px-4 py-5">
-
-          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-600">
-            Patient Menu
-          </p>
-
-          <div className="space-y-1">
-
+          <div className="space-y-1.5">
             {navItems.map((item) => {
-
               const Icon = item.icon;
-
               const active = isActive(item.href);
 
               return (
-                <Link
+                <div
                   key={item.href}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`
-                    group
-                    flex
-                    items-center
-                    gap-3
-                    rounded-xl
-                    px-3
-                    py-3
-                    text-sm
-                    font-medium
-                    transition
-                    ${
-                      active
-                        ? "bg-[#075db5] text-white shadow-lg shadow-blue-900/20"
-                        : "text-gray-400 hover:bg-white/5 hover:text-white"
-                    }
-                  `}
+                  className="relative"
                 >
-
-                  {/* ICON */}
-
-                  <Icon
-                    size={19}
-                    strokeWidth={2}
-                    className={`
-                      shrink-0
-                      ${
+                  <Link
+                    href={item.href}
+                    onClick={() =>
+                      setSidebarOpen(false)
+                    }
+                    title={
+                      sidebarCollapsed
+                        ? item.label
+                        : undefined
+                    }
+                    className={`group flex min-h-[44px] items-center rounded-xl text-sm font-medium transition-all duration-200 ${
+                      sidebarCollapsed
+                        ? "justify-center px-0"
+                        : "gap-3 px-3"
+                    } ${
+                      active
+                        ? "bg-[#075db5] text-white shadow-md shadow-blue-100"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <Icon
+                      size={19}
+                      strokeWidth={
+                        active ? 2.2 : 1.9
+                      }
+                      className={`shrink-0 transition-colors ${
                         active
                           ? "text-white"
-                          : "text-gray-500 group-hover:text-white"
-                      }
-                    `}
-                  />
+                          : "text-slate-400 group-hover:text-[#075db5]"
+                      }`}
+                    />
 
-                  {/* LABEL */}
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="flex-1 truncate">
+                          {item.label}
+                        </span>
 
-                  <span className="flex-1">
-                    {item.label}
-                  </span>
+                        {item.badge && (
+                          <span
+                            className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                              active
+                                ? "bg-white text-[#075db5]"
+                                : "bg-red-50 text-red-500"
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
 
-                  {/* BADGE */}
+                        {active && (
+                          <ChevronRight
+                            size={15}
+                            strokeWidth={2.2}
+                          />
+                        )}
+                      </>
+                    )}
 
-                  {item.badge && (
-                    <span
-                      className={`
-                        flex
-                        h-5
-                        min-w-5
-                        items-center
-                        justify-center
-                        rounded-full
-                        px-1.5
-                        text-[10px]
-                        font-bold
-                        ${
-                          active
-                            ? "bg-white text-[#075db5]"
-                            : "bg-red-500 text-white"
-                        }
-                      `}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-
-                  {/* ACTIVE ARROW */}
-
-                  {active && (
-                    <ChevronRight size={15} />
-                  )}
-
-                </Link>
+                    {sidebarCollapsed &&
+                      item.badge && (
+                        <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                      )}
+                  </Link>
+                </div>
               );
             })}
-
           </div>
-
         </nav>
 
-        {/* ===================================================
-            LOGOUT
-        =================================================== */}
-
-        <div className="border-t border-white/10 p-4">
-
+        <div
+          className={`shrink-0 border-t border-slate-200 p-3 ${
+            sidebarCollapsed
+              ? "flex justify-center"
+              : ""
+          }`}
+        >
           <button
             type="button"
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-gray-400 transition hover:bg-red-500/10 hover:text-red-400"
+            title={
+              sidebarCollapsed
+                ? "Logout"
+                : undefined
+            }
+            className={`group flex items-center rounded-xl py-3 text-sm font-medium text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 ${
+              sidebarCollapsed
+                ? "justify-center px-3"
+                : "w-full gap-3 px-3"
+            }`}
           >
+            <LogOut
+              size={19}
+              className="shrink-0 transition-transform group-hover:translate-x-0.5"
+            />
 
-            <LogOut size={19} />
-
-            <span>
-              Logout
-            </span>
-
+            {!sidebarCollapsed && (
+              <span>Logout</span>
+            )}
           </button>
-
         </div>
 
+        <div className="hidden border-t border-slate-200 p-2 lg:block">
+          <button
+            type="button"
+            onClick={() =>
+              setSidebarCollapsed(
+                (value) => !value
+              )
+            }
+            title={
+              sidebarCollapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
+            className="flex h-10 w-full items-center justify-center rounded-xl text-slate-400 transition-all hover:bg-slate-50 hover:text-[#075db5]"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={19} />
+            ) : (
+              <PanelLeftClose size={19} />
+            )}
+          </button>
+        </div>
       </aside>
 
-      {/* =====================================================
-          MAIN CONTENT
-      ===================================================== */}
-
-      <div className="min-h-screen lg:ml-64">
-
-        {/* HEADER */}
-
+      <div
+        className={`min-h-screen bg-[#f8fafc] transition-all duration-300 ${
+          sidebarCollapsed
+            ? "lg:ml-[76px]"
+            : "lg:ml-64"
+        }`}
+      >
         <PatientHeader />
 
-        {/* CONTENT */}
-
-        <main className="min-h-[calc(100vh-64px)] pt-16">
+        <main className="min-h-[calc(100vh-64px)] bg-[#f8fafc] pt-16">
           {children}
         </main>
-
       </div>
 
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        className="fixed bottom-5 left-5 z-30 flex h-11 w-11 items-center justify-center rounded-xl bg-[#075db5] text-white shadow-lg shadow-blue-200 transition hover:bg-[#064f9a] lg:hidden"
+        aria-label="Open menu"
+      >
+        <PanelLeftOpen size={20} />
+      </button>
     </div>
   );
 }

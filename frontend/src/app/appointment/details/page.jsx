@@ -2,780 +2,2579 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock3,
-  CreditCard,
-  MapPin,
+  IndianRupee,
+  Loader2,
+  Mail,
+  Phone,
+  ShieldCheck,
   Stethoscope,
   UserRound,
   Video,
+  Building2,
+  X,
 } from "lucide-react";
 
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:5000/api"
+).replace(/\/+$/, "");
+
 const SERVER_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "") ||
+  API_BASE_URL.replace(/\/api\/?$/, "") ||
   "http://localhost:5000";
 
-const VISIT_TYPES = {
-  hospital: {
-    label: "Hospital Visit",
-    icon: Stethoscope,
+const VISIT_TYPES = [
+  {
+    id: "hospital",
+    title: "Hospital Visit",
+    description: "Visit doctor at hospital",
+    icon: Building2,
   },
-  video: {
-    label: "Video Consultation",
+  {
+    id: "video",
+    title: "Video Consultation",
+    description: "Consult doctor online",
     icon: Video,
   },
-};
+];
 
-const pad = (value) => String(value).padStart(2, "0");
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
 
-const formatDateForStorage = (date) => {
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  return `${year}-${month}-${day}`;
-};
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
 
-const parseStoredDate = (value) => {
+function formatDateForStorage(date) {
+  return `${date.getFullYear()}-${pad(
+    date.getMonth() + 1
+  )}-${pad(date.getDate())}`;
+}
+
+function parseStoredDate(value) {
   if (!value) return null;
 
-  const parts = String(value).split("-");
-  if (parts.length !== 3) return null;
+  const date = new Date(`${value}T00:00:00`);
 
-  const year = Number(parts[0]);
-  const month = Number(parts[1]) - 1;
-  const day = Number(parts[2]);
-
-  const date = new Date(year, month, day);
-
-  if (Number.isNaN(date.getTime())) return null;
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
 
   return date;
-};
+}
 
-const getDayName = (date) =>
-  date.toLocaleDateString("en-US", {
-    weekday: "long",
-  }).toLowerCase();
-
-const formatDisplayDate = (value) => {
-  const date = typeof value === "string" ? parseStoredDate(value) : value;
-
-  if (!date) return "";
-
-  return date.toLocaleDateString("en-IN", {
+function getDayName(date) {
+  return date.toLocaleDateString("en-US", {
     weekday: "short",
-    day: "2-digit",
+  });
+}
+
+function formatDisplayDate(date) {
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
-};
+}
 
-const getImageValue = (value) => {
-  if (!value) return null;
+/* =========================================================
+   ID HELPERS
+========================================================= */
 
-  if (typeof value === "string") return value;
+function getDoctorId(doctor) {
+  return (
+    doctor?._id ||
+    doctor?.id ||
+    doctor?.doctorId ||
+    ""
+  );
+}
+
+function getDepartmentId(department, doctor) {
+  return (
+    department?._id ||
+    department?.id ||
+    department?.departmentId ||
+    doctor?.department?._id ||
+    doctor?.department?.id ||
+    doctor?.department?.departmentId ||
+    doctor?.departmentId ||
+    ""
+  );
+}
+
+/* =========================================================
+   IMAGE HELPERS
+========================================================= */
+
+function getImageValue(value) {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
 
   if (typeof value === "object") {
     return (
       value.url ||
       value.path ||
-      value.filename ||
-      value.fileName ||
       value.image ||
-      value.src ||
+      value.imageUrl ||
+      value.secure_url ||
+      ""
+    );
+  }
+
+  return "";
+}
+
+function getDoctorImageCandidates(doctor) {
+  const values = [
+    doctor?.profileImage,
+    doctor?.image,
+    doctor?.imageUrl,
+    doctor?.photo,
+    doctor?.avatar,
+  ];
+
+  const result = [];
+
+  values.forEach((value) => {
+    const image = getImageValue(value);
+
+    if (!image) return;
+
+    let finalUrl = image;
+
+    if (
+      !image.startsWith("http://") &&
+      !image.startsWith("https://") &&
+      !image.startsWith("data:")
+    ) {
+      finalUrl = `${SERVER_URL}/${image.replace(/^\/+/, "")}`;
+    }
+
+    if (!result.includes(finalUrl)) {
+      result.push(finalUrl);
+    }
+  });
+
+  return result;
+}
+
+/* =========================================================
+   TIME HELPERS
+========================================================= */
+
+function normalizeTime(value) {
+  if (!value) return "";
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function timeToMinutes(value) {
+  if (!value) return null;
+
+  const text = normalizeTime(value).toUpperCase();
+
+  let hour;
+  let minute;
+
+  if (text.includes("AM") || text.includes("PM")) {
+    const cleaned = text.replace(/\s+/g, " ").trim();
+    const parts = cleaned.split(" ");
+
+    const timePart = parts[0];
+    const period = parts[1];
+
+    const timeParts = timePart.split(":");
+
+    hour = Number(timeParts[0]);
+    minute = Number(timeParts[1] || 0);
+
+    if (
+      Number.isNaN(hour) ||
+      Number.isNaN(minute)
+    ) {
+      return null;
+    }
+
+    if (period === "AM" && hour === 12) {
+      hour = 0;
+    }
+
+    if (period === "PM" && hour !== 12) {
+      hour += 12;
+    }
+
+    if (
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return null;
+    }
+
+    return hour * 60 + minute;
+  }
+
+  const parts = text.split(":");
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  hour = Number(parts[0]);
+  minute = Number(parts[1]);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return null;
+  }
+
+  if (
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function minutesToTime(minutes) {
+  if (!Number.isFinite(minutes)) {
+    return "";
+  }
+
+  const normalizedMinutes =
+    ((minutes % 1440) + 1440) % 1440;
+
+  const hour = Math.floor(
+    normalizedMinutes / 60
+  );
+
+  const minute =
+    normalizedMinutes % 60;
+
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function formatTime(value) {
+  const minutes = timeToMinutes(value);
+
+  if (minutes === null) {
+    return value || "";
+  }
+
+  let hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+
+  const period =
+    hour >= 12 ? "PM" : "AM";
+
+  if (hour === 0) {
+    hour = 12;
+  } else if (hour > 12) {
+    hour -= 12;
+  }
+
+  return `${hour}:${pad(minute)} ${period}`;
+}
+
+/* =========================================================
+   SLOT GENERATOR
+========================================================= */
+
+function generateSlots(
+  startTime,
+  endTime,
+  duration
+) {
+  const slots = [];
+
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+
+  const slotDuration = Number(duration);
+
+  if (
+    start === null ||
+    end === null ||
+    !Number.isFinite(slotDuration) ||
+    slotDuration <= 0 ||
+    end <= start
+  ) {
+    return slots;
+  }
+
+  let current = start;
+
+  while (
+    current + slotDuration <= end
+  ) {
+    const slotStart =
+      minutesToTime(current);
+
+    const slotEnd =
+      minutesToTime(
+        current + slotDuration
+      );
+
+    slots.push({
+      id: `${slotStart}-${slotEnd}`,
+      startTime: slotStart,
+      endTime: slotEnd,
+      label: `${formatTime(
+        slotStart
+      )} - ${formatTime(slotEnd)}`,
+    });
+
+    current += slotDuration;
+  }
+
+  return slots;
+}
+
+/* =========================================================
+   EXPLICIT SLOT SUPPORT
+========================================================= */
+
+function extractSlots(
+  availability,
+  duration
+) {
+  if (!availability) {
+    return [];
+  }
+
+  const possibleSlots =
+    availability.slots ||
+    availability.timeSlots ||
+    availability.availableSlots ||
+    [];
+
+  if (!Array.isArray(possibleSlots)) {
+    return [];
+  }
+
+  return possibleSlots
+    .map((slot, index) => {
+      if (typeof slot === "string") {
+        const parts = slot
+          .split("-")
+          .map((item) => item.trim());
+
+        if (parts.length >= 2) {
+          const startTime =
+            normalizeTime(parts[0]);
+
+          const endTime =
+            normalizeTime(parts[1]);
+
+          if (
+            !startTime ||
+            !endTime
+          ) {
+            return null;
+          }
+
+          return {
+            id: `${startTime}-${endTime}-${index}`,
+            startTime,
+            endTime,
+            label: `${formatTime(
+              startTime
+            )} - ${formatTime(endTime)}`,
+          };
+        }
+
+        const singleTime =
+          normalizeTime(parts[0]);
+
+        const startMinutes =
+          timeToMinutes(singleTime);
+
+        if (
+          startMinutes === null ||
+          !duration
+        ) {
+          return null;
+        }
+
+        const endTime =
+          minutesToTime(
+            startMinutes +
+              Number(duration)
+          );
+
+        return {
+          id: `${singleTime}-${endTime}-${index}`,
+          startTime: singleTime,
+          endTime,
+          label: `${formatTime(
+            singleTime
+          )} - ${formatTime(endTime)}`,
+        };
+      }
+
+      const startTime =
+        slot?.startTime ||
+        slot?.start ||
+        slot?.from ||
+        slot?.time ||
+        slot?.appointmentTime ||
+        "";
+
+      let endTime =
+        slot?.endTime ||
+        slot?.end ||
+        slot?.to ||
+        "";
+
+      if (
+        !endTime &&
+        duration
+      ) {
+        const startMinutes =
+          timeToMinutes(
+            startTime
+          );
+
+        if (
+          startMinutes !== null
+        ) {
+          endTime =
+            minutesToTime(
+              startMinutes +
+                Number(duration)
+            );
+        }
+      }
+
+      if (!endTime) {
+        return null;
+      }
+
+      return {
+        id:
+          slot?._id ||
+          slot?.id ||
+          `${startTime}-${endTime}-${index}`,
+
+        startTime:
+          normalizeTime(startTime),
+
+        endTime:
+          normalizeTime(endTime),
+
+        label: `${formatTime(
+          startTime
+        )} - ${formatTime(endTime)}`,
+      };
+    })
+    .filter(Boolean);
+}
+
+/* =========================================================
+   DOCTOR AVAILABILITY
+========================================================= */
+
+function getModeAvailability(
+  doctor,
+  mode
+) {
+  if (!doctor) return null;
+
+  const availability =
+    doctor.availability ||
+    doctor.availabilities ||
+    doctor.schedule ||
+    doctor.weeklyAvailability ||
+    doctor.timings ||
+    null;
+
+  if (!availability) {
+    return null;
+  }
+
+  if (Array.isArray(availability)) {
+    const found =
+      availability.find((item) => {
+        const type =
+          item?.appointmentType ||
+          item?.visitType ||
+          item?.mode ||
+          item?.type;
+
+        return (
+          !type ||
+          String(type).toLowerCase() ===
+            String(mode).toLowerCase()
+        );
+      });
+
+    return found || null;
+  }
+
+  if (availability[mode]) {
+    return availability[mode];
+  }
+
+  if (mode === "hospital") {
+    return (
+      availability.hospital ||
+      availability.inPerson ||
+      availability.in_person ||
+      availability.hospitalVisit ||
       null
     );
   }
 
-  return null;
-};
-
-const getDoctorImageCandidates = (doctor) => {
-  if (!doctor) return [];
-
-  const rawValues = [
-    getImageValue(doctor.profileImage),
-    getImageValue(doctor.image),
-    getImageValue(doctor.imageUrl),
-    getImageValue(doctor.photo),
-  ].filter(Boolean);
-
-  const candidates = [];
-
-  rawValues.forEach((raw) => {
-    const value = String(raw).trim();
-
-    if (!value) return;
-
-    if (/^https?:\/\//i.test(value)) {
-      candidates.push(value);
-      return;
-    }
-
-    if (value.startsWith("/")) {
-      candidates.push(`${SERVER_URL}${value}`);
-      return;
-    }
-
-    if (value.startsWith("uploads/")) {
-      candidates.push(`${SERVER_URL}/${value}`);
-      return;
-    }
-
-    candidates.push(`${SERVER_URL}/uploads/doctors/${value}`);
-    candidates.push(`${SERVER_URL}/doctors/${value}`);
-    candidates.push(`${SERVER_URL}/${value}`);
-  });
-
-  return [...new Set(candidates)];
-};
-
-const normalizeTime = (value) => {
-  if (!value) return null;
-
-  const text = String(value).trim();
-
-  if (/^\d{1,2}:\d{2}$/.test(text)) {
-    const [hour, minute] = text.split(":").map(Number);
-
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      return `${pad(hour)}:${pad(minute)}`;
-    }
-  }
-
-  const match = text.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
-
-  if (match) {
-    let hour = Number(match[1]);
-    const minute = Number(match[2] || 0);
-    const period = match[3].toUpperCase();
-
-    if (hour === 12) hour = 0;
-    if (period === "PM") hour += 12;
-
-    return `${pad(hour)}:${pad(minute)}`;
-  }
-
-  return null;
-};
-
-const formatTime = (value) => {
-  const normalized = normalizeTime(value);
-
-  if (!normalized) return String(value || "");
-
-  const [hourText, minute] = normalized.split(":");
-  let hour = Number(hourText);
-  const suffix = hour >= 12 ? "PM" : "AM";
-
-  hour %= 12;
-  if (hour === 0) hour = 12;
-
-  return `${hour}:${minute} ${suffix}`;
-};
-
-const timeToMinutes = (value) => {
-  const normalized = normalizeTime(value);
-
-  if (!normalized) return null;
-
-  const [hour, minute] = normalized.split(":").map(Number);
-  return hour * 60 + minute;
-};
-
-const generateSlots = (startTime, endTime, interval = 30) => {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-
-  if (start === null || end === null || start >= end) return [];
-
-  const slots = [];
-
-  for (let current = start; current + interval <= end; current += interval) {
-    const hour = Math.floor(current / 60);
-    const minute = current % 60;
-
-    slots.push(`${pad(hour)}:${pad(minute)}`);
-  }
-
-  return slots;
-};
-
-const extractSlots = (source) => {
-  if (!source) return [];
-
-  if (Array.isArray(source)) {
-    return source
-      .map((item) => {
-        if (typeof item === "string" || typeof item === "number") {
-          return normalizeTime(item);
-        }
-
-        if (item && typeof item === "object") {
-          return normalizeTime(
-            item.time ||
-              item.startTime ||
-              item.slot ||
-              item.label ||
-              item.value
-          );
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-  }
-
-  if (typeof source === "object") {
-    const possibleArrays = [
-      source.slots,
-      source.timeSlots,
-      source.availableSlots,
-      source.times,
-    ];
-
-    for (const array of possibleArrays) {
-      const result = extractSlots(array);
-
-      if (result.length) return result;
-    }
-  }
-
-  return [];
-};
-
-const getModeAvailability = (availability, mode) => {
-  if (!availability) return null;
-
-  const modeKeys =
-    mode === "video"
-      ? ["video", "videoConsultation", "video_consultation", "online"]
-      : ["hospital", "hospitalVisit", "hospital_visit", "offline", "clinic"];
-
-  for (const key of modeKeys) {
-    if (availability[key]) return availability[key];
+  if (mode === "video") {
+    return (
+      availability.video ||
+      availability.online ||
+      availability.videoConsultation ||
+      null
+    );
   }
 
   return availability;
-};
+}
 
-const getAvailabilityForDate = (doctor, date) => {
-  if (!doctor || !date) return null;
+function getDayAvailability(
+  doctor,
+  date,
+  mode
+) {
+  if (!doctor || !date) {
+    return null;
+  }
 
-  const dayName = getDayName(date);
+  const modeAvailability =
+    getModeAvailability(
+      doctor,
+      mode
+    );
 
-  const sources = [
-    doctor.availability,
-    doctor.availabilities,
-    doctor.weeklyAvailability,
-    doctor.weeklySchedule,
-    doctor.schedule,
+  if (!modeAvailability) {
+    return null;
+  }
+
+  const dayName =
+    date.toLocaleDateString(
+      "en-US",
+      {
+        weekday: "long",
+      }
+    );
+
+  const dayShort =
+    date.toLocaleDateString(
+      "en-US",
+      {
+        weekday: "short",
+      }
+    );
+
+  const dayIndex =
+    date.getDay();
+
+  const candidates = [
+    dayName,
+    dayName.toLowerCase(),
+    dayShort,
+    dayShort.toLowerCase(),
+    String(dayIndex),
   ];
 
-  for (const source of sources) {
-    if (!source) continue;
-
-    if (Array.isArray(source)) {
-      const found = source.find((item) => {
-        const day = String(
-          item?.day ||
+  if (
+    Array.isArray(
+      modeAvailability
+    )
+  ) {
+    const found =
+      modeAvailability.find(
+        (item) => {
+          const itemDay =
+            item?.day ||
             item?.dayName ||
             item?.weekday ||
-            item?.weekDay ||
-            ""
-        ).toLowerCase();
+            item?.dayOfWeek;
 
-        return day === dayName;
-      });
+          return candidates.some(
+            (candidate) =>
+              String(
+                candidate
+              ).toLowerCase() ===
+              String(
+                itemDay || ""
+              ).toLowerCase()
+          );
+        }
+      );
 
-      if (found) return found;
-    }
+    return found || null;
+  }
 
-    if (typeof source === "object" && source[dayName]) {
-      return source[dayName];
-    }
+  if (
+    modeAvailability[dayName]
+  ) {
+    return modeAvailability[
+      dayName
+    ];
+  }
+
+  if (
+    modeAvailability[
+      dayName.toLowerCase()
+    ]
+  ) {
+    return modeAvailability[
+      dayName.toLowerCase()
+    ];
+  }
+
+  if (
+    modeAvailability[dayShort]
+  ) {
+    return modeAvailability[
+      dayShort
+    ];
+  }
+
+  if (
+    modeAvailability[
+      dayShort.toLowerCase()
+    ]
+  ) {
+    return modeAvailability[
+      dayShort.toLowerCase()
+    ];
+  }
+
+  if (
+    modeAvailability[
+      String(dayIndex)
+    ]
+  ) {
+    return modeAvailability[
+      String(dayIndex)
+    ];
+  }
+
+  if (
+    modeAvailability.startTime ||
+    modeAvailability.start ||
+    modeAvailability.from
+  ) {
+    return modeAvailability;
   }
 
   return null;
-};
+}
 
-const getSlotsForMode = (doctor, date, mode) => {
-  const availability = getAvailabilityForDate(doctor, date);
+/* =========================================================
+   APPOINTMENT DURATION
+========================================================= */
 
-  if (!availability) return [];
+function getAppointmentDuration(
+  doctor
+) {
+  const rawDuration =
+    doctor?.appointmentDuration ??
+    doctor?.consultationDuration ??
+    doctor?.slotDuration ??
+    doctor?.duration;
 
-  const modeAvailability = getModeAvailability(availability, mode);
-
-  if (!modeAvailability) return [];
+  const duration =
+    Number(rawDuration);
 
   if (
-    modeAvailability.enabled === false ||
-    modeAvailability.isAvailable === false
+    !Number.isFinite(duration) ||
+    duration <= 0
+  ) {
+    return null;
+  }
+
+  return duration;
+}
+
+/* =========================================================
+   LOCAL SLOT GENERATION
+========================================================= */
+
+function getSlotsForMode(
+  doctor,
+  date,
+  mode
+) {
+  if (
+    !doctor ||
+    !date ||
+    !mode
   ) {
     return [];
   }
 
-  const explicitSlots = extractSlots(modeAvailability);
+  const availability =
+    getDayAvailability(
+      doctor,
+      date,
+      mode
+    );
 
-  if (explicitSlots.length) {
-    return [...new Set(explicitSlots)].sort(
-      (a, b) => timeToMinutes(a) - timeToMinutes(b)
+  if (!availability) {
+    return [];
+  }
+
+  const duration =
+    getAppointmentDuration(
+      doctor
+    );
+
+  if (!duration) {
+    return [];
+  }
+
+  const startTime =
+    availability?.startTime ||
+    availability?.start ||
+    availability?.from ||
+    availability?.openingTime;
+
+  const endTime =
+    availability?.endTime ||
+    availability?.end ||
+    availability?.to ||
+    availability?.closingTime;
+
+  if (
+    startTime &&
+    endTime
+  ) {
+    return generateSlots(
+      startTime,
+      endTime,
+      duration
     );
   }
 
-  const start =
-    modeAvailability.startTime ||
-    modeAvailability.from ||
-    modeAvailability.start ||
-    availability.startTime ||
-    availability.from ||
-    availability.start;
+  return extractSlots(
+    availability,
+    duration
+  );
+}
 
-  const end =
-    modeAvailability.endTime ||
-    modeAvailability.to ||
-    modeAvailability.end ||
-    availability.endTime ||
-    availability.to ||
-    availability.end;
+/* =========================================================
+   OTHER HELPERS
+========================================================= */
 
-  return generateSlots(start, end, 30);
-};
+function getDoctorName(
+  doctor
+) {
+  return (
+    doctor?.name ||
+    doctor?.fullName ||
+    doctor?.doctorName ||
+    "Doctor"
+  );
+}
 
-const getDoctorName = (doctor) =>
-  doctor?.name ||
-  doctor?.doctorName ||
-  [doctor?.firstName, doctor?.lastName].filter(Boolean).join(" ") ||
-  "Doctor";
+function getDoctorSpecialization(
+  doctor
+) {
+  return (
+    doctor?.specialization ||
+    doctor?.speciality ||
+    doctor?.specialty ||
+    "Specialist"
+  );
+}
 
-const getDepartmentName = (doctor, department) =>
-  doctor?.department?.name ||
-  doctor?.departmentName ||
-  department?.name ||
-  "Department";
+function getDepartmentName(
+  department,
+  doctor
+) {
+  return (
+    department?.name ||
+    department?.departmentName ||
+    doctor?.department?.name ||
+    "Department"
+  );
+}
 
-const getConsultationFee = (doctor) =>
-  Number(
+function getDoctorFee(
+  doctor,
+  visitType
+) {
+  if (
+    visitType === "video"
+  ) {
+    return Number(
+      doctor?.videoConsultationFee ??
+        doctor?.videoFee ??
+        doctor?.onlineFee ??
+        doctor?.consultationFee ??
+        doctor?.fee ??
+        0
+    );
+  }
+
+  return Number(
     doctor?.consultationFee ??
+      doctor?.hospitalFee ??
       doctor?.fee ??
-      doctor?.consultation_fee ??
-      doctor?.fees ??
       0
-  ) || 0;
+  );
+}
 
-const getPatientName = (patient) =>
-  patient?.name ||
-  [patient?.firstName, patient?.lastName].filter(Boolean).join(" ") ||
-  "";
+function getPatientName(
+  patient
+) {
+  return (
+    patient?.name ||
+    patient?.fullName ||
+    `${patient?.firstName || ""} ${
+      patient?.lastName || ""
+    }`.trim()
+  );
+}
 
-const getPatientPhone = (patient) =>
-  patient?.phone ||
-  patient?.phoneNumber ||
-  patient?.mobile ||
-  patient?.contact ||
-  "";
+function getSlotKey(slot) {
+  if (!slot) return "";
 
-const getPatientDob = (patient) =>
-  patient?.dateOfBirth || patient?.dob || "";
+  return `${normalizeTime(
+    slot.startTime
+  )}-${normalizeTime(
+    slot.endTime
+  )}`;
+}
+
+/* =========================================================
+   NORMALIZE BACKEND SLOT
+========================================================= */
+
+function normalizeBackendSlot(
+  slot,
+  index,
+  duration
+) {
+  if (!slot) {
+    return null;
+  }
+
+  if (
+    typeof slot === "string"
+  ) {
+    const parts = slot
+      .split("-")
+      .map((item) => item.trim());
+
+    if (
+      parts.length >= 2
+    ) {
+      const startTime =
+        normalizeTime(parts[0]);
+
+      const endTime =
+        normalizeTime(parts[1]);
+
+      if (
+        !startTime ||
+        !endTime
+      ) {
+        return null;
+      }
+
+      return {
+        id: `${startTime}-${endTime}-${index}`,
+        startTime,
+        endTime,
+        label: `${formatTime(
+          startTime
+        )} - ${formatTime(endTime)}`,
+      };
+    }
+
+    const startTime =
+      normalizeTime(parts[0]);
+
+    if (
+      !startTime ||
+      !duration
+    ) {
+      return null;
+    }
+
+    const startMinutes =
+      timeToMinutes(
+        startTime
+      );
+
+    if (
+      startMinutes === null
+    ) {
+      return null;
+    }
+
+    const endTime =
+      minutesToTime(
+        startMinutes +
+          Number(duration)
+      );
+
+    return {
+      id: `${startTime}-${endTime}-${index}`,
+      startTime,
+      endTime,
+      label: `${formatTime(
+        startTime
+      )} - ${formatTime(endTime)}`,
+    };
+  }
+
+  const startTime =
+    slot?.startTime ||
+    slot?.start ||
+    slot?.from ||
+    slot?.time ||
+    slot?.appointmentTime ||
+    "";
+
+  let endTime =
+    slot?.endTime ||
+    slot?.end ||
+    slot?.to ||
+    "";
+
+  if (
+    !endTime &&
+    duration
+  ) {
+    const startMinutes =
+      timeToMinutes(
+        startTime
+      );
+
+    if (
+      startMinutes !== null
+    ) {
+      endTime =
+        minutesToTime(
+          startMinutes +
+            Number(duration)
+        );
+    }
+  }
+
+  if (
+    !startTime ||
+    !endTime
+  ) {
+    return null;
+  }
+
+  return {
+    id:
+      slot?._id ||
+      slot?.id ||
+      `${startTime}-${endTime}-${index}`,
+
+    startTime:
+      normalizeTime(startTime),
+
+    endTime:
+      normalizeTime(endTime),
+
+    label: `${formatTime(
+      startTime
+    )} - ${formatTime(endTime)}`,
+  };
+}
+
+/* =========================================================
+   EXTRACT BACKEND AVAILABILITY
+========================================================= */
+
+function getAvailabilityPayload(
+  data
+) {
+  if (
+    data &&
+    typeof data === "object"
+  ) {
+    if (
+      data.availableSlots !==
+        undefined ||
+      data.slots !==
+        undefined ||
+      data.isFull !==
+        undefined ||
+      data.totalSlots !==
+        undefined
+    ) {
+      return data;
+    }
+
+    if (
+      data.data &&
+      typeof data.data ===
+        "object"
+    ) {
+      return data.data;
+    }
+
+    if (
+      data.result &&
+      typeof data.result ===
+        "object"
+    ) {
+      return data.result;
+    }
+  }
+
+  return data || {};
+}
+
+function extractBackendSlots(
+  data,
+  duration
+) {
+  const payload =
+    getAvailabilityPayload(
+      data
+    );
+
+  let serverAvailable = [];
+
+  if (
+    Array.isArray(
+      payload?.availableSlots
+    )
+  ) {
+    serverAvailable =
+      payload.availableSlots;
+  } else if (
+    Array.isArray(
+      payload?.slots
+    )
+  ) {
+    serverAvailable =
+      payload.slots;
+  } else if (
+    Array.isArray(
+      payload?.data?.availableSlots
+    )
+  ) {
+    serverAvailable =
+      payload.data.availableSlots;
+  } else if (
+    Array.isArray(
+      payload?.data?.slots
+    )
+  ) {
+    serverAvailable =
+      payload.data.slots;
+  }
+
+  const normalized =
+    serverAvailable
+      .map(
+        (slot, index) =>
+          normalizeBackendSlot(
+            slot,
+            index,
+            duration
+          )
+      )
+      .filter(Boolean);
+
+  return {
+    payload,
+    slots: normalized,
+    hasSlotField:
+      Array.isArray(
+        payload?.availableSlots
+      ) ||
+      Array.isArray(
+        payload?.slots
+      ) ||
+      Array.isArray(
+        payload?.data?.availableSlots
+      ) ||
+      Array.isArray(
+        payload?.data?.slots
+      ),
+  };
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 export default function AppointmentDetailsPage() {
   const router = useRouter();
 
-  const [doctor, setDoctor] = useState(null);
-  const [department, setDepartment] = useState(null);
-  const [patient, setPatient] = useState(null);
+  const [doctor, setDoctor] =
+    useState(null);
 
-  const [appointmentDate, setAppointmentDate] = useState("");
-  const [visitType, setVisitType] = useState("hospital");
-  const [selectedSlot, setSelectedSlot] = useState("");
+  const [department, setDepartment] =
+    useState(null);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [patient, setPatient] =
+    useState(null);
 
-  const [doctorImageCandidates, setDoctorImageCandidates] = useState([]);
-  const [doctorImageIndex, setDoctorImageIndex] = useState(0);
+  const [
+    appointmentDate,
+    setAppointmentDate,
+  ] = useState("");
 
-  const today = useMemo(() => {
-    const date = new Date();
+  const [
+    visitType,
+    setVisitType,
+  ] = useState("hospital");
 
-    date.setHours(0, 0, 0, 0);
+  const [
+    selectedSlot,
+    setSelectedSlot,
+  ] = useState(null);
 
-    return date;
-  }, []);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const upcomingDates = useMemo(() => {
-    const dates = [];
+  const [
+    loadingSlots,
+    setLoadingSlots,
+  ] = useState(false);
 
-    for (let index = 0; index < 14; index += 1) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + index);
-      dates.push(date);
-    }
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-    return dates;
-  }, [today]);
+  const [
+    doctorImageIndex,
+    setDoctorImageIndex,
+  ] = useState(0);
+
+  const [error, setError] =
+    useState("");
+
+  const [toast, setToast] =
+    useState("");
+
+  const [
+    backendSlots,
+    setBackendSlots,
+  ] = useState(null);
+
+  const [
+    availabilityFull,
+    setAvailabilityFull,
+  ] = useState(false);
+
+  const [
+    availabilityMessage,
+    setAvailabilityMessage,
+  ] = useState("");
+
+  const [
+    availabilityError,
+    setAvailabilityError,
+  ] = useState(false);
+
+  const [
+    availabilityChecked,
+    setAvailabilityChecked,
+  ] = useState(false);
+
+  /* =====================================================
+     TOAST
+  ===================================================== */
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timer =
+      setTimeout(() => {
+        setToast("");
+      }, 4000);
+
+    return () =>
+      clearTimeout(timer);
+  }, [toast]);
+
+  function showToast(message) {
+    setToast(message);
+  }
+
+  /* =====================================================
+     LOAD SESSION DATA
+  ===================================================== */
 
   useEffect(() => {
     try {
-      const storedDoctor = sessionStorage.getItem("selectedDoctor");
-      const storedDepartment = sessionStorage.getItem("selectedDepartment");
-      const storedDate = sessionStorage.getItem("selectedAppointmentDate");
+      const storedDoctor =
+        sessionStorage.getItem(
+          "selectedDoctor"
+        );
+
+      const storedDepartment =
+        sessionStorage.getItem(
+          "selectedDepartment"
+        );
+
+      const storedDate =
+        sessionStorage.getItem(
+          "selectedAppointmentDate"
+        );
 
       const storedPatient =
-        sessionStorage.getItem("appointmentPatient") ||
-        sessionStorage.getItem("patient") ||
-        sessionStorage.getItem("loggedInPatient");
+        sessionStorage.getItem(
+          "appointmentPatient"
+        ) ||
+        sessionStorage.getItem(
+          "patient"
+        ) ||
+        sessionStorage.getItem(
+          "loggedInPatient"
+        );
 
-      const storedDetails = sessionStorage.getItem("appointmentDetails");
+      const storedAppointmentDetails =
+        sessionStorage.getItem(
+          "appointmentDetails"
+        );
 
       if (storedDoctor) {
-        setDoctor(JSON.parse(storedDoctor));
+        setDoctor(
+          JSON.parse(
+            storedDoctor
+          )
+        );
       }
 
       if (storedDepartment) {
-        setDepartment(JSON.parse(storedDepartment));
+        setDepartment(
+          JSON.parse(
+            storedDepartment
+          )
+        );
       }
 
       if (storedPatient) {
-        setPatient(JSON.parse(storedPatient));
+        try {
+          setPatient(
+            JSON.parse(
+              storedPatient
+            )
+          );
+        } catch {
+          setPatient({
+            name: storedPatient,
+          });
+        }
       }
 
       if (storedDate) {
-        setAppointmentDate(storedDate);
+        setAppointmentDate(
+          storedDate
+        );
+      } else {
+        const today =
+          new Date();
+
+        const todayString =
+          formatDateForStorage(
+            today
+          );
+
+        setAppointmentDate(
+          todayString
+        );
+
+        sessionStorage.setItem(
+          "selectedAppointmentDate",
+          todayString
+        );
       }
 
-      if (storedDetails) {
-        const details = JSON.parse(storedDetails);
+      if (
+        storedAppointmentDetails
+      ) {
+        try {
+          const details =
+            JSON.parse(
+              storedAppointmentDetails
+            );
 
-        if (!storedDate && details?.appointmentDate) {
-          setAppointmentDate(details.appointmentDate);
-        }
+          if (
+            details?.visitType
+          ) {
+            setVisitType(
+              details.visitType
+            );
+          } else if (
+            details?.appointmentType
+          ) {
+            setVisitType(
+              details.appointmentType
+            );
+          }
 
-        if (details?.visitType) {
-          setVisitType(details.visitType);
-        }
-
-        if (details?.selectedSlot || details?.timeSlot) {
-          setSelectedSlot(details.selectedSlot || details.timeSlot);
-        }
-
-        if (!storedPatient && details?.patient) {
-          setPatient(details.patient);
-        }
+          if (
+            details?.selectedSlot
+          ) {
+            setSelectedSlot(
+              details.selectedSlot
+            );
+          }
+        } catch {}
       }
+    } catch (err) {
+      console.error(
+        "Appointment details load error:",
+        err
+      );
 
-      setLoading(false);
-    } catch {
-      setError("Unable to load appointment details.");
+      setError(
+        "Unable to load appointment details."
+      );
+    } finally {
       setLoading(false);
     }
   }, []);
+
+  /* =====================================================
+     IDS
+  ===================================================== */
+
+  const doctorId = useMemo(
+    () => getDoctorId(doctor),
+    [doctor]
+  );
+
+  const departmentId = useMemo(
+    () =>
+      getDepartmentId(
+        department,
+        doctor
+      ),
+    [department, doctor]
+  );
+
+  /* =====================================================
+     IMAGE
+  ===================================================== */
+
+  const imageCandidates =
+    useMemo(() => {
+      return getDoctorImageCandidates(
+        doctor
+      );
+    }, [doctor]);
+
+  useEffect(() => {
+    setDoctorImageIndex(0);
+  }, [doctor]);
+
+  /* =====================================================
+     DATE
+  ===================================================== */
+
+  const selectedDateObject =
+    useMemo(() => {
+      return parseStoredDate(
+        appointmentDate
+      );
+    }, [appointmentDate]);
+
+  /* =====================================================
+     DURATION
+  ===================================================== */
+
+  const appointmentDuration =
+    useMemo(() => {
+      return getAppointmentDuration(
+        doctor
+      );
+    }, [doctor]);
+
+  /* =====================================================
+     LOCAL SLOTS
+  ===================================================== */
+
+  const generatedSlots =
+    useMemo(() => {
+      return getSlotsForMode(
+        doctor,
+        selectedDateObject,
+        visitType
+      );
+    }, [
+      doctor,
+      selectedDateObject,
+      visitType,
+    ]);
+
+  /* =====================================================
+     FETCH BACKEND AVAILABILITY
+  ===================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAvailability() {
+      if (
+        !doctor ||
+        !appointmentDate ||
+        !visitType
+      ) {
+        setBackendSlots(null);
+        setAvailabilityFull(false);
+        setAvailabilityMessage("");
+        setAvailabilityError(false);
+        setAvailabilityChecked(false);
+        return;
+      }
+
+      const currentDoctorId =
+        getDoctorId(doctor);
+
+      const currentDepartmentId =
+        getDepartmentId(
+          department,
+          doctor
+        );
+
+      if (!currentDoctorId) {
+        setBackendSlots(null);
+        setAvailabilityChecked(false);
+        setAvailabilityError(true);
+        setAvailabilityMessage(
+          "Doctor details are incomplete."
+        );
+        return;
+      }
+
+      if (!currentDepartmentId) {
+        setBackendSlots(null);
+        setAvailabilityChecked(false);
+        setAvailabilityError(true);
+        setAvailabilityMessage(
+          "Department details are missing. Please select the department again."
+        );
+
+        showToast(
+          "Department details are missing. Please select the department again."
+        );
+
+        return;
+      }
+
+      try {
+        setLoadingSlots(true);
+        setSelectedSlot(null);
+
+        setBackendSlots(null);
+        setAvailabilityFull(false);
+        setAvailabilityMessage("");
+        setAvailabilityError(false);
+        setAvailabilityChecked(false);
+
+        const params =
+          new URLSearchParams({
+            doctor:
+              currentDoctorId,
+
+            department:
+              currentDepartmentId,
+
+            appointmentDate,
+
+            appointmentType:
+              visitType,
+          });
+
+        const url =
+          `${API_BASE_URL}/appointments/available-slots?${params.toString()}`;
+
+        console.log(
+          "Checking appointment availability:",
+          {
+            doctorId:
+              currentDoctorId,
+            departmentId:
+              currentDepartmentId,
+            appointmentDate,
+            visitType,
+            url,
+          }
+        );
+
+        const response =
+          await fetch(url, {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            cache: "no-store",
+          });
+
+        const data =
+          await response
+            .json()
+            .catch(() => ({}));
+
+        console.log(
+          "Appointment availability response:",
+          {
+            status:
+              response.status,
+            data,
+          }
+        );
+
+        if (cancelled) return;
+
+        if (!response.ok) {
+          setBackendSlots([]);
+          setAvailabilityFull(false);
+          setAvailabilityError(true);
+          setAvailabilityChecked(true);
+
+          const message =
+            data?.message ||
+            data?.error ||
+            "Unable to load available slots.";
+
+          setAvailabilityMessage(
+            message
+          );
+
+          showToast(message);
+
+          return;
+        }
+
+        const extracted =
+          extractBackendSlots(
+            data,
+            appointmentDuration
+          );
+
+        const payload =
+          extracted.payload;
+
+        const normalized =
+          extracted.slots;
+
+        console.log(
+          "Normalized appointment slots:",
+          {
+            payload,
+            normalized,
+            generatedSlots,
+            appointmentDuration,
+          }
+        );
+
+        setBackendSlots(
+          normalized
+        );
+
+        setAvailabilityError(
+          false
+        );
+
+        setAvailabilityChecked(
+          true
+        );
+
+        const serverIsFull =
+          payload?.isFull ===
+            true ||
+          payload?.isFull ===
+            "true";
+
+        setAvailabilityFull(
+          serverIsFull
+        );
+
+        const message =
+          payload?.message ||
+          "";
+
+        setAvailabilityMessage(
+          message
+        );
+
+        if (serverIsFull) {
+          showToast(
+            "Appointment Full — No slots available for this date."
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Availability fetch error:",
+          err
+        );
+
+        if (cancelled) return;
+
+        setBackendSlots([]);
+        setAvailabilityFull(false);
+        setAvailabilityError(true);
+        setAvailabilityChecked(true);
+
+        const message =
+          "Unable to check appointment availability. Please try again.";
+
+        setAvailabilityMessage(
+          message
+        );
+
+        showToast(message);
+      } finally {
+        if (!cancelled) {
+          setLoadingSlots(false);
+        }
+      }
+    }
+
+    fetchAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    doctor,
+    department,
+    appointmentDate,
+    visitType,
+    appointmentDuration,
+    generatedSlots,
+  ]);
+
+  /* =====================================================
+     FINAL AVAILABLE SLOTS
+  ===================================================== */
+
+  const availableSlots =
+    useMemo(() => {
+      if (
+        availabilityChecked &&
+        !availabilityError &&
+        Array.isArray(
+          backendSlots
+        )
+      ) {
+        return backendSlots;
+      }
+
+      if (
+        !availabilityChecked &&
+        !availabilityError
+      ) {
+        return generatedSlots;
+      }
+
+      return [];
+    }, [
+      backendSlots,
+      generatedSlots,
+      availabilityChecked,
+      availabilityError,
+    ]);
+
+  /* =====================================================
+     FEES
+  ===================================================== */
+
+  const consultationFee =
+    useMemo(() => {
+      return getDoctorFee(
+        doctor,
+        visitType
+      );
+    }, [
+      doctor,
+      visitType,
+    ]);
+
+  const serviceFee = 50;
+
+  const totalAmount =
+    consultationFee +
+    serviceFee;
+
+  /* =====================================================
+     DATES
+  ===================================================== */
+
+  const dates = useMemo(() => {
+    const result = [];
+
+    const today =
+      new Date();
+
+    today.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    for (
+      let i = 0;
+      i < 14;
+      i++
+    ) {
+      const date =
+        new Date(today);
+
+      date.setDate(
+        today.getDate() + i
+      );
+
+      result.push(date);
+    }
+
+    return result;
+  }, []);
+
+  /* =====================================================
+     SELECTED SLOT VALIDATION
+  ===================================================== */
+
+  useEffect(() => {
+    if (!selectedSlot) {
+      return;
+    }
+
+    if (
+      !availabilityChecked ||
+      loadingSlots ||
+      availabilityError
+    ) {
+      return;
+    }
+
+    const exists =
+      availableSlots.some(
+        (slot) =>
+          getSlotKey(slot) ===
+          getSlotKey(
+            selectedSlot
+          )
+      );
+
+    if (!exists) {
+      setSelectedSlot(null);
+    }
+  }, [
+    availableSlots,
+    selectedSlot,
+    availabilityChecked,
+    loadingSlots,
+    availabilityError,
+  ]);
+
+  /* =====================================================
+     STORE DATE
+  ===================================================== */
+
+  useEffect(() => {
+    if (
+      !appointmentDate ||
+      !doctor ||
+      !visitType
+    ) {
+      return;
+    }
+
+    sessionStorage.setItem(
+      "selectedAppointmentDate",
+      appointmentDate
+    );
+  }, [
+    appointmentDate,
+    doctor,
+    visitType,
+  ]);
+
+  /* =====================================================
+     STORE APPOINTMENT DETAILS
+  ===================================================== */
 
   useEffect(() => {
     if (!doctor) return;
 
-    const candidates = getDoctorImageCandidates(doctor);
+    const details = {
+      doctorId:
+        getDoctorId(doctor),
 
-    setDoctorImageCandidates(candidates);
-    setDoctorImageIndex(0);
-  }, [doctor]);
+      departmentId:
+        getDepartmentId(
+          department,
+          doctor
+        ),
 
-  useEffect(() => {
-    if (!appointmentDate || !doctor) return;
+      appointmentDate,
 
-    const date = parseStoredDate(appointmentDate);
+      appointmentType:
+        visitType,
 
-    if (!date) {
-      setSelectedSlot("");
+      visitType,
+
+      selectedSlot,
+
+      appointmentDuration,
+    };
+
+    sessionStorage.setItem(
+      "appointmentDetails",
+      JSON.stringify(details)
+    );
+  }, [
+    doctor,
+    department,
+    appointmentDate,
+    visitType,
+    selectedSlot,
+    appointmentDuration,
+  ]);
+
+  /* =====================================================
+     DATE CHANGE
+  ===================================================== */
+
+  function handleDateChange(
+    date
+  ) {
+    const dateString =
+      formatDateForStorage(
+        date
+      );
+
+    setAppointmentDate(
+      dateString
+    );
+
+    setSelectedSlot(null);
+
+    setBackendSlots(null);
+
+    setAvailabilityFull(false);
+
+    setAvailabilityMessage("");
+
+    setAvailabilityError(false);
+
+    setAvailabilityChecked(
+      false
+    );
+
+    setError("");
+
+    sessionStorage.setItem(
+      "selectedAppointmentDate",
+      dateString
+    );
+  }
+
+  /* =====================================================
+     VISIT TYPE CHANGE
+  ===================================================== */
+
+  function handleVisitTypeChange(
+    type
+  ) {
+    setVisitType(type);
+
+    setSelectedSlot(null);
+
+    setBackendSlots(null);
+
+    setAvailabilityFull(false);
+
+    setAvailabilityMessage("");
+
+    setAvailabilityError(false);
+
+    setAvailabilityChecked(
+      false
+    );
+
+    setError("");
+
+    sessionStorage.setItem(
+      "appointmentDetails",
+      JSON.stringify({
+        doctorId:
+          getDoctorId(doctor),
+
+        departmentId:
+          getDepartmentId(
+            department,
+            doctor
+          ),
+
+        appointmentDate,
+
+        appointmentType:
+          type,
+
+        visitType:
+          type,
+      })
+    );
+  }
+
+  /* =====================================================
+     SLOT CHANGE
+  ===================================================== */
+
+  function handleSlotChange(
+    slot
+  ) {
+    if (
+      loadingSlots ||
+      availabilityError ||
+      availabilityFull
+    ) {
       return;
     }
 
-    const slots = getSlotsForMode(doctor, date, visitType);
-
-    if (!slots.includes(selectedSlot)) {
-      setSelectedSlot("");
-    }
-  }, [appointmentDate, doctor, visitType, selectedSlot]);
-
-  const selectedDateObject = useMemo(
-    () => parseStoredDate(appointmentDate),
-    [appointmentDate]
-  );
-
-  const availableSlots = useMemo(() => {
-    if (!doctor || !selectedDateObject) return [];
-
-    return getSlotsForMode(
-      doctor,
-      selectedDateObject,
-      visitType
-    );
-  }, [doctor, selectedDateObject, visitType]);
-
-  const doctorImage = doctorImageCandidates[doctorImageIndex] || "";
-
-  const patientName = getPatientName(patient);
-  const patientEmail = patient?.email || "";
-  const patientPhone = getPatientPhone(patient);
-  const patientDob = getPatientDob(patient);
-
-  const consultationFee = getConsultationFee(doctor);
-  const serviceFee = 50;
-  const totalAmount = consultationFee + serviceFee;
-
-  const isDateSelected = Boolean(appointmentDate);
-  const isSlotSelected = Boolean(selectedSlot);
-  const canPay =
-    Boolean(doctor) &&
-    Boolean(patient) &&
-    isDateSelected &&
-    isSlotSelected &&
-    Boolean(visitType) &&
-    !saving;
-
-  const handleDateChange = (date) => {
-    const value = formatDateForStorage(date);
-
-    setAppointmentDate(value);
-    setSelectedSlot("");
-    setError("");
-
-    sessionStorage.setItem("selectedAppointmentDate", value);
-  };
-
-  const handleVisitTypeChange = (type) => {
-    setVisitType(type);
-    setSelectedSlot("");
-    setError("");
-  };
-
-  const handleSlotChange = (slot) => {
     setSelectedSlot(slot);
     setError("");
-  };
+  }
 
-  const handlePay = async () => {
+  /* =====================================================
+     PAYMENT / CHECKOUT
+  ===================================================== */
+
+  async function handlePay() {
+    setError("");
+
     if (!doctor) {
-      setError("Doctor information is missing.");
+      showToast(
+        "Doctor details not found."
+      );
+      return;
+    }
+
+    if (!departmentId) {
+      showToast(
+        "Department details not found. Please select the department again."
+      );
+      return;
+    }
+
+    if (!doctorId) {
+      showToast(
+        "Doctor ID is missing. Please select the doctor again."
+      );
       return;
     }
 
     if (!patient) {
-      setError(
-        "Patient information is missing. Please complete patient login first."
+      showToast(
+        "Please login or register before continuing."
       );
       return;
     }
 
     if (!appointmentDate) {
-      setError("Please select an appointment date.");
-      return;
-    }
-
-    if (!selectedSlot) {
-      setError("Please select a time slot.");
+      showToast(
+        "Please select appointment date."
+      );
       return;
     }
 
     if (!visitType) {
-      setError("Please select an appointment type.");
+      showToast(
+        "Please select appointment type."
+      );
       return;
     }
 
-    setSaving(true);
-    setError("");
+    if (!selectedSlot) {
+      showToast(
+        "Please select a time slot."
+      );
+      return;
+    }
 
-    const appointmentDetails = {
-      doctor,
-      department,
-      patient,
-      appointmentDate,
-      date: appointmentDate,
-      visitType,
-      appointmentType: visitType,
-      selectedSlot,
-      timeSlot: selectedSlot,
-      consultationFee,
-      serviceFee,
-      totalAmount,
-      status: "pending_payment",
-      createdAt: new Date().toISOString(),
-    };
+    if (
+      !appointmentDuration
+    ) {
+      showToast(
+        "Doctor appointment duration is not configured."
+      );
+      return;
+    }
+
+    if (loadingSlots) {
+      showToast(
+        "Checking appointment availability. Please wait."
+      );
+      return;
+    }
+
+    if (availabilityError) {
+      showToast(
+        availabilityMessage ||
+          "Unable to verify appointment availability."
+      );
+      return;
+    }
+
+    if (!availabilityChecked) {
+      showToast(
+        "Please wait while appointment availability is checked."
+      );
+      return;
+    }
+
+    if (availabilityFull) {
+      showToast(
+        "Appointment Full — No slots available."
+      );
+      return;
+    }
+
+    if (
+      availableSlots.length === 0
+    ) {
+      showToast(
+        "No appointment slots are currently available."
+      );
+      return;
+    }
+
+    const selectedStillAvailable =
+      availableSlots.some(
+        (slot) =>
+          getSlotKey(slot) ===
+          getSlotKey(
+            selectedSlot
+          )
+      );
+
+    if (
+      !selectedStillAvailable
+    ) {
+      setSelectedSlot(null);
+
+      showToast(
+        "This time slot is no longer available. Please select another slot."
+      );
+
+      return;
+    }
 
     try {
+      setSaving(true);
+
+      /* ===============================================
+         FINAL BACKEND AVAILABILITY CHECK
+      =============================================== */
+
+      const availabilityParams =
+        new URLSearchParams({
+          doctor:
+            doctorId,
+
+          department:
+            departmentId,
+
+          appointmentDate,
+
+          appointmentType:
+            visitType,
+        });
+
+      const availabilityUrl =
+        `${API_BASE_URL}/appointments/available-slots?${availabilityParams.toString()}`;
+
+      console.log(
+        "Final availability check:",
+        {
+          doctorId,
+          departmentId,
+          appointmentDate,
+          appointmentType:
+            visitType,
+          url:
+            availabilityUrl,
+        }
+      );
+
+      const availabilityResponse =
+        await fetch(
+          availabilityUrl,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+
+      const availabilityData =
+        await availabilityResponse
+          .json()
+          .catch(() => ({}));
+
+      if (
+        !availabilityResponse.ok
+      ) {
+        showToast(
+          availabilityData?.message ||
+            "Unable to verify slot availability."
+        );
+
+        return;
+      }
+
+      const latestExtracted =
+        extractBackendSlots(
+          availabilityData,
+          appointmentDuration
+        );
+
+      const latestPayload =
+        latestExtracted.payload;
+
+      const latestSlots =
+        latestExtracted.slots;
+
+      const latestIsFull =
+        latestPayload?.isFull ===
+          true ||
+        latestPayload?.isFull ===
+          "true";
+
+      if (latestIsFull) {
+        setSelectedSlot(null);
+
+        setBackendSlots([]);
+
+        setAvailabilityFull(
+          true
+        );
+
+        setAvailabilityChecked(
+          true
+        );
+
+        showToast(
+          "Appointment Full — This date has no available slots."
+        );
+
+        return;
+      }
+
+      const latestSlotExists =
+        latestSlots.some(
+          (slot) =>
+            getSlotKey(slot) ===
+            getSlotKey(
+              selectedSlot
+            )
+        );
+
+      if (
+        !latestSlotExists
+      ) {
+        setSelectedSlot(null);
+
+        setBackendSlots(
+          latestSlots
+        );
+
+        setAvailabilityFull(
+          false
+        );
+
+        setAvailabilityChecked(
+          true
+        );
+
+        showToast(
+          "This appointment slot has just been booked. Please select another slot."
+        );
+
+        return;
+      }
+
+      /* ===============================================
+         FINAL TIME
+      =============================================== */
+
+      const startTime =
+        selectedSlot.startTime;
+
+      const selectedStartMinutes =
+        timeToMinutes(
+          startTime
+        );
+
+      if (
+        selectedStartMinutes ===
+        null
+      ) {
+        showToast(
+          "Invalid appointment start time."
+        );
+        return;
+      }
+
+      const calculatedEnd =
+        minutesToTime(
+          selectedStartMinutes +
+            appointmentDuration
+        );
+
+      const endTime =
+        selectedSlot.endTime ||
+        calculatedEnd;
+
+      /* ===============================================
+         APPOINTMENT DETAILS
+      =============================================== */
+
+      const appointmentDetails =
+        {
+          doctorId,
+
+          departmentId,
+
+          doctor,
+
+          department,
+
+          appointmentDate,
+
+          appointmentType:
+            visitType,
+
+          visitType,
+
+          startTime,
+
+          endTime,
+
+          appointmentDuration,
+
+          selectedSlot: {
+            ...selectedSlot,
+
+            startTime,
+
+            endTime,
+          },
+
+          patient,
+
+          consultationFee,
+
+          serviceFee,
+
+          totalAmount,
+
+          status:
+            "pending_payment",
+
+          paymentStatus:
+            "unpaid",
+        };
+
       sessionStorage.setItem(
         "appointmentDetails",
-        JSON.stringify(appointmentDetails)
+        JSON.stringify(
+          appointmentDetails
+        )
       );
 
-      sessionStorage.setItem(
-        "appointmentPatient",
-        JSON.stringify(patient)
+      /* ===============================================
+         CHECKOUT QUERY
+      =============================================== */
+
+      const query =
+        new URLSearchParams({
+          doctor:
+            doctorId,
+
+          department:
+            departmentId,
+
+          appointmentType:
+            visitType,
+
+          appointmentDate,
+
+          startTime,
+
+          endTime,
+        });
+
+      router.push(
+        `/appointment/checkout?${query.toString()}`
+      );
+    } catch (err) {
+      console.error(
+        "Continue payment error:",
+        err
       );
 
-      sessionStorage.setItem(
-        "selectedAppointmentDate",
-        appointmentDate
+      showToast(
+        "Unable to continue. Please try again."
       );
-
-      router.push("/appointment/checkout");
-    } catch {
-      setError("Unable to continue to payment.");
+    } finally {
       setSaving(false);
     }
-  };
+  }
+
+  /* =====================================================
+     LOADING
+  ===================================================== */
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-slate-600">
-          <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-          Loading appointment details...
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex items-center gap-3 text-blue-600">
+          <Loader2 className="h-6 w-6 animate-spin" />
+
+          <span>
+            Loading appointment details...
+          </span>
         </div>
-      </main>
+      </div>
     );
   }
+
+  /* =====================================================
+     DOCTOR NOT FOUND
+  ===================================================== */
 
   if (!doctor) {
     return (
-      <main className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
+          <X className="mx-auto h-12 w-12 text-red-500 mb-4" />
+
+          <h2 className="text-xl font-semibold text-slate-800">
+            Doctor details not found
+          </h2>
+
+          <p className="text-slate-500 mt-2">
+            Please select a doctor again.
+          </p>
+
           <button
-            type="button"
-            onClick={() => router.back()}
-            className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700"
+            onClick={() =>
+              router.back()
+            }
+            className="mt-6 w-full rounded-xl bg-blue-600 text-white py-3 font-medium hover:bg-blue-700"
           >
-            <ArrowLeft size={18} />
-            Back
+            Go Back
           </button>
-
-          <div className="rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
-              <Stethoscope size={28} />
-            </div>
-
-            <h1 className="text-xl font-bold text-slate-900">
-              Doctor information missing
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-              Please go back and select a doctor again.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => router.push("/appointment")}
-              className="mt-6 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              Select Doctor
-            </button>
-          </div>
         </div>
-      </main>
+      </div>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-slate-50 pb-12">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">
-              Yash Hospital
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Appointment Details
-            </h1>
-          </div>
+  /* =====================================================
+     DISPLAY DATA
+  ===================================================== */
 
-          <div className="hidden items-center gap-2 text-sm text-slate-500 sm:flex">
-            <CheckCircle2 size={18} className="text-green-600" />
-            Secure Booking
+  const doctorName =
+    getDoctorName(
+      doctor
+    );
+
+  const specialization =
+    getDoctorSpecialization(
+      doctor
+    );
+
+  const departmentName =
+    getDepartmentName(
+      department,
+      doctor
+    );
+
+  const selectedDateText =
+    selectedDateObject
+      ? formatDisplayDate(
+          selectedDateObject
+        )
+      : "Select date";
+
+  const isFull =
+    !loadingSlots &&
+    !availabilityError &&
+    availabilityChecked &&
+    availabilityFull === true;
+
+  const noSlots =
+    !loadingSlots &&
+    !availabilityError &&
+    availabilityChecked &&
+    !availabilityFull &&
+    availableSlots.length === 0;
+
+  /* =====================================================
+     UI
+  ===================================================== */
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* =================================================
+          TOAST
+      ================================================= */}
+
+      {toast && (
+        <div
+          role="status"
+          className="fixed right-5 top-5 z-[100] max-w-sm rounded-2xl border border-red-200 bg-white px-5 py-4 shadow-xl"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-red-100 p-1.5">
+              <X className="h-4 w-4 text-red-600" />
+            </div>
+
+            <div className="flex-1">
+              <p className="font-semibold text-slate-800">
+                Appointment
+              </p>
+
+              <p className="mt-1 text-sm text-slate-600">
+                {toast}
+              </p>
+            </div>
+
+            <button
+              onClick={() =>
+                setToast("")
+              }
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      </header>
+      )}
 
-      <div className="mx-auto max-w-6xl px-4 pt-6">
+      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+        {/* =================================================
+            BACK
+        ================================================= */}
+
         <button
-          type="button"
-          onClick={() => router.back()}
-          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700"
+          onClick={() =>
+            router.back()
+          }
+          className="mb-5 flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-600"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft className="h-4 w-4" />
           Back
         </button>
 
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            {error}
-          </div>
-        )}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            {/* =================================================
+                DOCTOR
+            ================================================= */}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <section className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-5 sm:flex-row">
-                <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
-                  {doctorImage ? (
+                <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-blue-50">
+                  {imageCandidates.length >
+                  0 ? (
                     <img
-                      src={doctorImage}
-                      alt={getDoctorName(doctor)}
+                      src={
+                        imageCandidates[
+                          doctorImageIndex
+                        ]
+                      }
+                      alt={doctorName}
                       className="h-full w-full object-cover"
                       onError={() => {
-                        setDoctorImageIndex((current) => {
-                          if (
-                            current + 1 <
-                            doctorImageCandidates.length
-                          ) {
-                            return current + 1;
-                          }
-
-                          return current;
-                        });
+                        if (
+                          doctorImageIndex <
+                          imageCandidates.length -
+                            1
+                        ) {
+                          setDoctorImageIndex(
+                            (prev) =>
+                              prev + 1
+                          );
+                        }
                       }}
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-slate-400">
-                      <UserRound size={42} />
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Stethoscope className="h-12 w-12 text-blue-500" />
                     </div>
                   )}
                 </div>
 
                 <div className="flex-1">
                   <p className="text-sm font-medium text-blue-600">
-                    Doctor
+                    {departmentName}
                   </p>
 
-                  <h2 className="mt-1 text-xl font-bold text-slate-900">
-                    {getDoctorName(doctor)}
-                  </h2>
+                  <h1 className="mt-1 text-2xl font-bold text-slate-800">
+                    Dr. {doctorName}
+                  </h1>
 
-                  <p className="mt-1 text-sm text-slate-600">
-                    {doctor?.specialization ||
-                      doctor?.speciality ||
-                      "Medical Specialist"}
+                  <p className="mt-1 text-slate-500">
+                    {specialization}
                   </p>
 
-                  <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Stethoscope size={16} />
-                      {getDepartmentName(doctor, department)}
-                    </span>
-
-                    {doctor?.experience && (
-                      <span>
-                        {doctor.experience} years experience
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {doctor?.qualification && (
+                      <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+                        {
+                          doctor.qualification
+                        }
                       </span>
                     )}
 
-                    {doctor?.location && (
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin size={16} />
-                        {doctor.location}
+                    {doctor?.experience && (
+                      <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+                        {
+                          doctor.experience
+                        }{" "}
+                        years experience
                       </span>
                     )}
                   </div>
@@ -783,56 +2582,146 @@ export default function AppointmentDetailsPage() {
               </div>
             </div>
 
+            {/* =================================================
+                APPOINTMENT TYPE
+            ================================================= */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-slate-900">
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold text-slate-800">
                   Appointment Type
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
-                  Select how you want to consult the doctor.
+                  Choose how you want to
+                  consult the doctor
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {Object.entries(VISIT_TYPES).map(
-                  ([type, config]) => {
-                    const Icon = config.icon;
-                    const active = visitType === type;
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {VISIT_TYPES.map(
+                  (type) => {
+                    const Icon =
+                      type.icon;
+
+                    const active =
+                      visitType ===
+                      type.id;
 
                     return (
                       <button
-                        key={type}
+                        key={type.id}
                         type="button"
                         onClick={() =>
-                          handleVisitTypeChange(type)
+                          handleVisitTypeChange(
+                            type.id
+                          )
                         }
-                        className={`rounded-xl border p-4 text-left transition ${
+                        className={`rounded-2xl border p-4 text-left transition ${
                           active
-                            ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
+                            ? "border-blue-600 bg-blue-50 ring-2 ring-blue-100"
                             : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start justify-between">
                           <div
-                            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                            className={`rounded-xl p-3 ${
                               active
                                 ? "bg-blue-600 text-white"
                                 : "bg-slate-100 text-slate-600"
                             }`}
                           >
-                            <Icon size={20} />
+                            <Icon className="h-5 w-5" />
                           </div>
 
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {config.label}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {type === "video"
-                                ? "Consult online from anywhere"
-                                : "Visit hospital clinic"}
-                            </p>
-                          </div>
+                          {active && (
+                            <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+
+                        <h3 className="mt-4 font-semibold text-slate-800">
+                          {
+                            type.title
+                          }
+                        </h3>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          {
+                            type.description
+                          }
+                        </p>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            </div>
+
+            {/* =================================================
+                DATE
+            ================================================= */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-800">
+                    Select Date
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Choose your appointment
+                    date
+                  </p>
+                </div>
+
+                <CalendarDays className="h-6 w-6 text-blue-600" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-7">
+                {dates.map(
+                  (date) => {
+                    const value =
+                      formatDateForStorage(
+                        date
+                      );
+
+                    const selected =
+                      value ===
+                      appointmentDate;
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          handleDateChange(
+                            date
+                          )
+                        }
+                        className={`rounded-xl border px-3 py-3 text-center transition ${
+                          selected
+                            ? "border-blue-600 bg-blue-600 text-white shadow-md"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                        }`}
+                      >
+                        <div className="text-xs font-medium">
+                          {getDayName(
+                            date
+                          )}
+                        </div>
+
+                        <div className="mt-1 text-lg font-bold">
+                          {date.getDate()}
+                        </div>
+
+                        <div className="text-xs">
+                          {date.toLocaleDateString(
+                            "en-US",
+                            {
+                              month:
+                                "short",
+                            }
+                          )}
                         </div>
                       </button>
                     );
@@ -841,327 +2730,462 @@ export default function AppointmentDetailsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-slate-900">
-                  Select Date
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Choose your preferred appointment date.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-7">
-                {upcomingDates.map((date) => {
-                  const value = formatDateForStorage(date);
-                  const active = appointmentDate === value;
-                  const slots = getSlotsForMode(
-                    doctor,
-                    date,
-                    visitType
-                  );
-
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={slots.length === 0}
-                      onClick={() => handleDateChange(date)}
-                      className={`rounded-xl border p-3 text-center transition ${
-                        active
-                          ? "border-blue-600 bg-blue-600 text-white"
-                          : slots.length
-                            ? "border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50"
-                            : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
-                      }`}
-                    >
-                      <p className="text-xs font-medium">
-                        {date.toLocaleDateString("en-IN", {
-                          weekday: "short",
-                        })}
-                      </p>
-
-                      <p className="mt-1 text-xl font-bold">
-                        {date.getDate()}
-                      </p>
-
-                      <p className="text-xs">
-                        {date.toLocaleDateString("en-IN", {
-                          month: "short",
-                        })}
-                      </p>
-
-                      <p
-                        className={`mt-2 text-[10px] ${
-                          active
-                            ? "text-blue-100"
-                            : slots.length
-                              ? "text-green-600"
-                              : "text-slate-300"
-                        }`}
-                      >
-                        {slots.length
-                          ? `${slots.length} slots`
-                          : "Unavailable"}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* =================================================
+                TIME SLOTS
+            ================================================= */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2 className="text-xl font-semibold text-slate-800">
                     Select Time Slot
                   </h2>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {appointmentDate
-                      ? `Available slots for ${formatDisplayDate(
-                          appointmentDate
-                        )}`
-                      : "Select a date first."}
+                  <p className="mt-1 text-slate-500">
+                    Available slots for{" "}
+                    {
+                      selectedDateText
+                    }
                   </p>
                 </div>
 
-                <Clock3 className="text-blue-600" size={22} />
+                <Clock3 className="h-6 w-6 text-blue-600" />
               </div>
 
-              {!appointmentDate ? (
-                <div className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                  Please select an appointment date first.
+              <div className="mb-5 rounded-2xl bg-blue-50 px-5 py-4">
+                <p className="text-blue-600">
+                  Doctor consultation
+                  duration:{" "}
+                  <span className="font-bold">
+                    {appointmentDuration
+                      ? `${appointmentDuration} minutes`
+                      : "Not configured"}
+                  </span>
+                </p>
+              </div>
+
+              {loadingSlots ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-8 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+
+                  <h3 className="mt-3 font-semibold text-blue-800">
+                    Checking available
+                    slots...
+                  </h3>
+
+                  <p className="mt-1 text-sm text-blue-600">
+                    Please wait while we
+                    check appointment
+                    availability.
+                  </p>
                 </div>
-              ) : availableSlots.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-8 text-center text-sm text-amber-700">
-                  No slots are available for this date and appointment
-                  type.
+              ) : availabilityError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-6 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+
+                  <h3 className="mt-3 text-lg font-semibold text-red-700">
+                    Unable to check
+                    availability
+                  </h3>
+
+                  <p className="mt-1 text-sm text-red-600">
+                    {availabilityMessage ||
+                      "Please try again."}
+                  </p>
+                </div>
+              ) : isFull ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-6 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+
+                  <h3 className="mt-3 text-lg font-semibold text-red-700">
+                    Appointment Full
+                  </h3>
+
+                  <p className="mt-1 text-sm text-red-600">
+                    All appointment slots are
+                    unavailable for this
+                    date.
+                  </p>
+
+                  <p className="mt-1 text-sm text-red-500">
+                    Please select another
+                    date.
+                  </p>
+                </div>
+              ) : availableSlots.length >
+                0 ? (
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                    {availableSlots.map(
+                      (slot) => {
+                        const selected =
+                          selectedSlot &&
+                          getSlotKey(
+                            selectedSlot
+                          ) ===
+                            getSlotKey(
+                              slot
+                            );
+
+                        return (
+                          <button
+                            key={
+                              slot.id ||
+                              getSlotKey(
+                                slot
+                              )
+                            }
+                            type="button"
+                            onClick={() =>
+                              handleSlotChange(
+                                slot
+                              )
+                            }
+                            className={`rounded-2xl border px-4 py-5 text-center transition ${
+                              selected
+                                ? "border-blue-600 bg-blue-600 text-white shadow-md"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:bg-blue-50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-center gap-2">
+                              <Clock3 className="h-4 w-4" />
+
+                              <span className="font-semibold">
+                                {formatTime(
+                                  slot.startTime
+                                )}
+                              </span>
+                            </div>
+
+                            <p
+                              className={`mt-1 text-sm ${
+                                selected
+                                  ? "text-blue-100"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              to{" "}
+                              {formatTime(
+                                slot.endTime
+                              )}
+                            </p>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  {selectedSlot && (
+                    <div className="mt-5 flex items-center gap-3 rounded-2xl bg-green-50 px-5 py-4 text-green-700">
+                      <CheckCircle2 className="h-5 w-5 shrink-0" />
+
+                      <span>
+                        Selected:{" "}
+                        <strong>
+                          {formatTime(
+                            selectedSlot.startTime
+                          )}
+                          {" - "}
+                          {formatTime(
+                            selectedSlot.endTime
+                          )}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : noSlots ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-center">
+                  <Clock3 className="mx-auto h-10 w-10 text-amber-600" />
+
+                  <h3 className="mt-3 font-semibold text-amber-800">
+                    No slots available
+                  </h3>
+
+                  <p className="mt-1 text-sm text-amber-700">
+                    {availabilityMessage ||
+                      "Doctor is not available on this date."}
+                  </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {availableSlots.map((slot) => {
-                    const active = selectedSlot === slot;
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
+                  <Clock3 className="mx-auto h-10 w-10 text-slate-400" />
 
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        onClick={() => handleSlotChange(slot)}
-                        className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-                          active
-                            ? "border-blue-600 bg-blue-600 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:bg-blue-50"
-                        }`}
-                      >
-                        {formatTime(slot)}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                  <h3 className="mt-3 font-semibold text-slate-700">
+                    Checking availability
+                  </h3>
 
-              {selectedSlot && (
-                <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                  <CheckCircle2 size={18} />
-                  Selected: {formatTime(selectedSlot)}
+                  <p className="mt-1 text-sm text-slate-500">
+                    Please wait...
+                  </p>
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                  <UserRound size={20} />
-                </div>
+            {/* =================================================
+                PATIENT
+            ================================================= */}
 
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Patient Details
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Details from your patient profile
-                  </p>
-                </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold text-slate-800">
+                  Patient Details
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Appointment will be booked
+                  for this patient
+                </p>
               </div>
 
               {patient ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Name
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-900">
-                      {patientName || "Not available"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Email
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-900 break-all">
-                      {patientEmail || "Not available"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Phone
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-900">
-                      {patientPhone || "Not available"}
-                    </p>
-                  </div>
-
-                  {patientDob && (
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Date of Birth
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {patientDob}
-                      </p>
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                      <UserRound className="h-6 w-6 text-blue-600" />
                     </div>
-                  )}
+
+                    <div>
+                      <h3 className="font-semibold text-slate-800">
+                        {getPatientName(
+                          patient
+                        ) ||
+                          "Patient"}
+                      </h3>
+
+                      {patient?.email && (
+                        <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+                          <Mail className="h-4 w-4" />
+
+                          {
+                            patient.email
+                          }
+                        </div>
+                      )}
+
+                      {patient?.phone && (
+                        <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+                          <Phone className="h-4 w-4" />
+
+                          {
+                            patient.phone
+                          }
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-700">
-                  Patient profile information is not available in this
-                  booking session. Please go back and complete patient
-                  login/profile first.
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                  <p className="font-medium text-amber-800">
+                    Login required
+                  </p>
+
+                  <p className="mt-1 text-sm text-amber-700">
+                    Please login or register
+                    before continuing to
+                    payment.
+                  </p>
                 </div>
               )}
             </div>
-          </section>
+          </div>
 
-          <aside className="lg:sticky lg:top-6 lg:h-fit">
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 p-5">
-                <h2 className="text-lg font-bold text-slate-900">
-                  Booking Summary
-                </h2>
-              </div>
+          {/* ===================================================
+              SUMMARY
+          =================================================== */}
 
-              <div className="space-y-5 p-5">
+          <div className="lg:col-span-1">
+            <div className="sticky top-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Booking Summary
+              </h2>
+
+              <div className="mt-5 space-y-4">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                     Doctor
                   </p>
-                  <p className="mt-1 font-semibold text-slate-900">
-                    {getDoctorName(doctor)}
+
+                  <p className="mt-1 font-semibold text-slate-800">
+                    Dr. {doctorName}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {getDepartmentName(doctor, department)}
+
+                  <p className="text-sm text-slate-500">
+                    {specialization}
                   </p>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <CalendarDays
-                    size={19}
-                    className="mt-0.5 text-blue-600"
-                  />
-                  <div>
-                    <p className="text-xs text-slate-400">Date</p>
-                    <p className="font-semibold text-slate-900">
-                      {appointmentDate
-                        ? formatDisplayDate(appointmentDate)
-                        : "Not selected"}
-                    </p>
-                  </div>
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Department
+                  </p>
+
+                  <p className="mt-1 text-slate-700">
+                    {departmentName}
+                  </p>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <Clock3
-                    size={19}
-                    className="mt-0.5 text-blue-600"
-                  />
-                  <div>
-                    <p className="text-xs text-slate-400">Time</p>
-                    <p className="font-semibold text-slate-900">
-                      {selectedSlot
-                        ? formatTime(selectedSlot)
-                        : "Not selected"}
-                    </p>
-                  </div>
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Visit Type
+                  </p>
+
+                  <p className="mt-1 text-slate-700">
+                    {visitType ===
+                    "video"
+                      ? "Video Consultation"
+                      : "Hospital Visit"}
+                  </p>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  {visitType === "video" ? (
-                    <Video
-                      size={19}
-                      className="mt-0.5 text-blue-600"
-                    />
-                  ) : (
-                    <Stethoscope
-                      size={19}
-                      className="mt-0.5 text-blue-600"
-                    />
-                  )}
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Date
+                  </p>
 
-                  <div>
-                    <p className="text-xs text-slate-400">
-                      Appointment Type
-                    </p>
-                    <p className="font-semibold text-slate-900">
-                      {VISIT_TYPES[visitType]?.label}
-                    </p>
-                  </div>
+                  <p className="mt-1 text-slate-700">
+                    {selectedDateText}
+                  </p>
                 </div>
 
-                <div className="border-t border-slate-200 pt-5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Time
+                  </p>
+
+                  <p className="mt-1 text-slate-700">
+                    {selectedSlot
+                      ? `${formatTime(
+                          selectedSlot.startTime
+                        )} - ${formatTime(
+                          selectedSlot.endTime
+                        )}`
+                      : "Not selected"}
+                  </p>
+                </div>
+
+                {/* FEE */}
+
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">
                       Consultation Fee
                     </span>
-                    <span className="font-medium text-slate-900">
-                      ₹{consultationFee.toLocaleString("en-IN")}
+
+                    <span className="font-medium text-slate-800">
+                      ₹{consultationFee}
                     </span>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-slate-600">
                       Service Fee
                     </span>
-                    <span className="font-medium text-slate-900">
-                      ₹{serviceFee.toLocaleString("en-IN")}
+
+                    <span className="font-medium text-slate-800">
+                      ₹{serviceFee}
                     </span>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-                    <span className="font-bold text-slate-900">
+                    <span className="font-semibold text-slate-800">
                       Total
                     </span>
-                    <span className="text-xl font-bold text-blue-600">
-                      ₹{totalAmount.toLocaleString("en-IN")}
+
+                    <span className="flex items-center gap-1 text-xl font-bold text-blue-600">
+                      <IndianRupee className="h-5 w-5" />
+
+                      {totalAmount}
                     </span>
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-700">
-                  {isDateSelected && isSlotSelected
-                    ? "Date and time slot selected. You can continue to payment."
-                    : "Select both date and time slot to continue to payment."}
-                </div>
+                {/* PAY BUTTON */}
 
-                {isDateSelected && isSlotSelected && (
-                  <button
-                    type="button"
-                    disabled={!canPay}
-                    onClick={handlePay}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    <CreditCard size={19} />
-                    {saving
-                      ? "Preparing Payment..."
-                      : "Continue to Payment"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handlePay}
+                  disabled={
+                    saving ||
+                    loadingSlots ||
+                    availabilityError ||
+                    !availabilityChecked ||
+                    !selectedSlot ||
+                    availableSlots.length ===
+                      0 ||
+                    isFull ||
+                    !appointmentDuration ||
+                    !departmentId
+                  }
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 font-semibold transition ${
+                    saving ||
+                    loadingSlots ||
+                    availabilityError ||
+                    !availabilityChecked ||
+                    !selectedSlot ||
+                    availableSlots.length ===
+                      0 ||
+                    isFull ||
+                    !appointmentDuration ||
+                    !departmentId
+                      ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+
+                      Please wait...
+                    </>
+                  ) : loadingSlots ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+
+                      Checking slots...
+                    </>
+                  ) : availabilityError ? (
+                    <>
+                      <X className="h-5 w-5" />
+
+                      Availability Error
+                    </>
+                  ) : isFull ? (
+                    <>
+                      <X className="h-5 w-5" />
+
+                      Appointment Full
+                    </>
+                  ) : (
+                    <>
+                      Continue to Payment
+
+                      <ChevronRight className="h-5 w-5" />
+                    </>
+                  )}
+                </button>
+
+                {/* SECURITY */}
+
+                <div className="flex items-start gap-3 rounded-xl bg-green-50 p-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+
+                  <p className="text-xs leading-5 text-green-700">
+                    Your appointment details are
+                    securely handled. Payment is
+                    processed securely at checkout.
+                  </p>
+                </div>
               </div>
             </div>
-          </aside>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
